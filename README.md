@@ -92,8 +92,8 @@ sudo systemctl start nginx
   "ric": "1234567",
   "alias": "VSAV Schirmeck",
   "func": "1",
-  "message": "SAP VERT A DOMICILE VSAV001.COND BENFELD 7C RUE PETIT REMPART",
-  "address": "BENFELD 7C RUE PETIT REMPART"
+  "message": "SAP VERT A DOMICILE VSAV001.COND ******",
+  "address": " ***** **** **** ******** "
 }
 ```
 

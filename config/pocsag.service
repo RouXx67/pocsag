@@ -1,0 +1,13 @@
+[Unit]
+Description=Decoder POCSAG RTL-SDR vers Web, Telegram et Discord
+After=network.target nginx.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/bin/bash -c "rtl_fm -f 85.955M -f 173512.5k -M fm -s 176400 -r 22050 -E offset -l 0 -g 19.2 | multimon-ng -t raw -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -f alpha - | python3 /opt/pocsag/app.py"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

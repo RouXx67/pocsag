@@ -1,0 +1,23 @@
+# Fichier systemd service pour POCSAG Monitor Pro
+# À placer dans /etc/systemd/system/
+
+[Unit]
+Description=POCSAG Monitor Pro - Récepteur SDR et décodeur
+After=network.target
+Requires=network.target
+
+[Service]
+Type=simple
+User=pocsag
+Group=pocsag
+WorkingDirectory=/opt/pocsag
+Environment=PYTHONPATH=/opt/pocsag
+ExecStart=/bin/bash -c 'rtl_fm -f 85955000 -f 173512500 -s 22050 -g 42 | multimon-ng -t raw -a POCSAG512 -a POCSAG1200 -a POCSAG2400 - | python3 /opt/pocsag/src/app.py'
+Restart=always
+RestartSec=5
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=pocsag-monitor
+
+[Install]
+WantedBy=multi-user.target

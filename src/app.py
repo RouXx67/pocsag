@@ -328,17 +328,31 @@ class APIHandler(BaseHTTPRequestHandler):
         elif path == "/api/service/restart":
             try:
                 import subprocess
-                # daemon-reload déjà fait dans update_pocsag_service, on redémarre
-                subprocess.run(["systemctl", "restart", "pocsag"], timeout=10)
+                # Répondre AVANT de redémarrer sinon la connexion est tuée par systemctl restart (le serveur HTTP est dans le service)
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
-                self.wfile.write(b'{"status":"restarted"}')
+                self.wfile.write(b'{"status":"restarting"}')
+                try:
+                    self.wfile.flush()
+                except Exception:
+                    pass
+                def _delayed_restart():
+                    import time as _t
+                    _t.sleep(0.8)
+                    try:
+                        subprocess.run(["systemctl", "restart", "pocsag"], timeout=10)
+                    except Exception as ex:
+                        print(f"restart echoue: {ex}")
+                threading.Thread(target=_delayed_restart, daemon=True).start()
             except Exception as e:
-                self.send_response(500)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode())
+                try:
+                    self.send_response(500)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": str(e)}).encode())
+                except Exception:
+                    pass
             return
         elif path == "/api/service/status":
             try:

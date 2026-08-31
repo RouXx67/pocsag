@@ -6,12 +6,13 @@
 
 set -e
 
-# Couleurs
+# Couleurs directes (pas de fonctions)
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m'
+NC='\033[0m' # No Color
 
+# Fonctions d'affichage avec codes couleurs directs
 print_ok() { echo -e "${GREEN}[OK]${NC} $1"; }
 print_err() { echo -e "${RED}[ERREUR]${NC} $1"; }
 print_info() { echo -e "${NC}[$1] $2"; }
@@ -47,7 +48,8 @@ fi
 if command -v nginx &>/dev/null; then
   print_ok "Nginx disponible"
 else
-  print_warning "Nginx non disponible - interface web limitée"
+  # Utiliser echo direct au lieu de print_warning
+  echo -e "${YELLOW}[WARNING] Nginx non disponible - interface web limitée${NC}"
 fi
 
 # Installation module Python requests
@@ -64,8 +66,9 @@ elif pip3 install requests 2>/dev/null; then
   print_ok "Module Python requests installé via pip standard"
 # Échoué - message d'avertissement
 else
-  print_warning "Échec installation Python requests automatique"
-  print_info "INFO" "Vous pouvez installer manuellement : pip3 install requests"
+  # Utiliser echo direct au lieu de print_warning
+  echo -e "${YELLOW}[WARNING] Échec installation Python requests automatique${NC}"
+  echo "Vous pouvez installer manuellement : pip3 install requests"
 fi
 
 # Vérification installation
@@ -73,7 +76,7 @@ if python3 -c "import requests" 2>/dev/null; then
   print_ok "Module Python requests vérifié avec succès"
 else
   print_err "Module Python requests non disponible"
-  print_info "INFO" "Certaines fonctionnalités Telegram/Discord peuvent être limitées"
+  echo "Certaines fonctionnalités Telegram/Discord peuvent être limitées"
 fi
 
 echo ""
@@ -136,7 +139,7 @@ print_info "NGINX3" "Test configuration Nginx..."
 if nginx -t; then
   print_ok "Configuration Nginx valide"
 else
-  print_warning "Problème de configuration Nginx - vérification manuelle requise"
+  echo -e "${YELLOW}[WARNING] Problème de configuration Nginx - vérification manuelle requise${NC}"
 fi
 
 # Redémarrage nginx
@@ -147,7 +150,7 @@ systemctl restart nginx 2>/dev/null || nginx
 if systemctl is-active --quiet nginx 2>/dev/null; then
   print_ok "Nginx actif"
 else
-  print_warning "Nginx non actif - interface web peut être limitée"
+  echo -e "${YELLOW}[WARNING] Nginx non actif - interface web peut être limitée${NC}"
 fi
 
 print_info "WEB" "Interface : http://$(hostname -I | awk '{print $1}')"

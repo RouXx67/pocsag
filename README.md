@@ -52,8 +52,8 @@ Application autonome de décodage et supervision en temps réel des trames POCSA
 ### Installation automatique (recommandée)
 ```bash
 # Télécharger le projet
-git clone https://github.com/votre-user/pocsag-monitor-pro.git
-cd pocsag-monitor-pro
+git clone https://github.com/RouXx67/pocsag.git
+cd pocsag
 
 # Installation complète en une commande
 sudo bash setup.sh

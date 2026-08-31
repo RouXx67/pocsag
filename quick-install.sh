@@ -1,6 +1,6 @@
-#!/bin/bash
+﻿#!/bin/bash
 #
-# POCSAG Monitor Pro - Installation rapide en une ligne
+# POCSAG Monitor - Installation rapide en une ligne
 # Usage: curl -fsSL https://raw.githubusercontent.com/.../quick-install.sh | sudo bash
 #
 
@@ -8,7 +8,7 @@
 REPO_URL="https://github.com/RouXx67/pocsag"
 TEMP_DIR="/tmp/pocsag-install"
 
-echo "🚀 Installation rapide POCSAG Monitor Pro"
+echo "🚀 Installation rapide POCSAG Monitor"
 
 # Nettoyage du répertoire temporaire
 rm -rf $TEMP_DIR

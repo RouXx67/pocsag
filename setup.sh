@@ -1,6 +1,6 @@
-#!/bin/bash
+﻿#!/bin/bash
 #
-# POCSAG Monitor Pro - Script d'installation automatique
+# POCSAG Monitor - Script d'installation automatique
 # Usage: sudo bash setup.sh
 #
 
@@ -43,7 +43,7 @@ print_error() {
 print_header() {
     echo -e "${BLUE}"
     echo "╔═══════════════════════════════════════╗"
-    echo "║        POCSAG Monitor Pro             ║"
+    echo "║        POCSAG Monitor             ║"
     echo "║     Installation automatique          ║"
     echo "╚═══════════════════════════════════════╝"
     echo -e "${NC}"

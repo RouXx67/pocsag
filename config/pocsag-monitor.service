@@ -1,8 +1,8 @@
-# Fichier systemd service pour POCSAG Monitor Pro
+﻿# Fichier systemd service pour POCSAG Monitor
 # À placer dans /etc/systemd/system/
 
 [Unit]
-Description=POCSAG Monitor Pro - Récepteur SDR et décodeur
+Description=POCSAG Monitor - Récepteur SDR et décodeur
 After=network.target
 Requires=network.target
 

@@ -1,6 +1,6 @@
-#!/bin/bash
+﻿#!/bin/bash
 #
-# Configuration des mises à jour automatiques POCSAG Monitor Pro
+# Configuration des mises à jour automatiques POCSAG Monitor
 # Usage: sudo bash setup-auto-update.sh
 #
 
@@ -31,7 +31,7 @@ print_header() {
     echo -e "${BLUE}"
     echo "╔═══════════════════════════════════════╗"
     echo "║     Configuration Auto-Update         ║"
-    echo "║       POCSAG Monitor Pro              ║"
+    echo "║       POCSAG Monitor              ║"
     echo "╚═══════════════════════════════════════╝"
     echo -e "${NC}"
 }

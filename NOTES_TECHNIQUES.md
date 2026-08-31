@@ -1,4 +1,4 @@
-# Notes Techniques POCSAG Monitor Pro
+﻿# Notes Techniques POCSAG Monitor
 
 ## Paramètres RTL-SDR optimisés
 

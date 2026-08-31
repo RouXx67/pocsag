@@ -1,6 +1,6 @@
-#!/bin/bash
+﻿#!/bin/bash
 #
-# POCSAG Monitor Pro - Script de désinstallation
+# POCSAG Monitor - Script de désinstallation
 # Usage: sudo bash uninstall.sh
 #
 
@@ -32,7 +32,7 @@ print_error() {
 print_header() {
     echo -e "${RED}"
     echo "╔═══════════════════════════════════════╗"
-    echo "║        POCSAG Monitor Pro             ║"
+    echo "║        POCSAG Monitor             ║"
     echo "║      Désinstallation complète         ║"
     echo "╚═══════════════════════════════════════╝"
     echo -e "${NC}"
@@ -47,7 +47,7 @@ fi
 print_header
 
 # Confirmation
-echo -e "${YELLOW}⚠️  Cette action va supprimer complètement POCSAG Monitor Pro${NC}"
+echo -e "${YELLOW}⚠️  Cette action va supprimer complètement POCSAG Monitor${NC}"
 echo "- Services systemd"
 echo "- Fichiers de configuration"
 echo "- Interface web"
@@ -136,4 +136,4 @@ else
     echo "⚠️  Dépendances conservées"
 fi
 
-echo -e "\n${GREEN}POCSAG Monitor Pro complètement désinstallé !${NC}"
+echo -e "\n${GREEN}POCSAG Monitor complètement désinstallé !${NC}"

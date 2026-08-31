@@ -1,6 +1,6 @@
-#!/bin/bash
+﻿#!/bin/bash
 #
-# POCSAG Monitor Pro - Script d'installation automatique
+# POCSAG Monitor - Script d'installation automatique
 # Usage: sudo bash install.sh
 #
 
@@ -27,7 +27,7 @@ print_info() { echo -e "${YELLOW}[INFO]${NC} $1"; }
 
 clear
 echo "========================================="
-echo "  POCSAG Monitor Pro - Installation"
+echo "  POCSAG Monitor - Installation"
 echo "========================================="
 echo ""
 

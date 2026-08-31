@@ -1,6 +1,6 @@
-#!/bin/bash
+﻿#!/bin/bash
 #
-# POCSAG Monitor Pro - Script de mise à jour intelligent
+# POCSAG Monitor - Script de mise à jour intelligent
 # Usage: sudo bash update.sh [options]
 # Options: --force, --backup-only, --check-only, --rollback
 #
@@ -48,7 +48,7 @@ print_update() {
 print_header() {
     echo -e "${CYAN}"
     echo "╔═══════════════════════════════════════╗"
-    echo "║        POCSAG Monitor Pro             ║"
+    echo "║        POCSAG Monitor             ║"
     echo "║      Mise à jour intelligente         ║"
     echo "╚═══════════════════════════════════════╝"
     echo -e "${NC}"
@@ -117,7 +117,7 @@ check_installation() {
     print_status "Vérification de l'installation existante..."
     
     if [ ! -f "/opt/pocsag/app.py" ]; then
-        print_error "POCSAG Monitor Pro n'est pas installé !"
+        print_error "POCSAG Monitor n'est pas installé !"
         print_status "Utilisez 'sudo bash setup.sh' pour l'installer"
         exit 1
     fi
@@ -172,7 +172,7 @@ create_backup() {
     
     # Création d'un manifest de la sauvegarde
     cat > "$backup_path/backup_info.txt" << EOF
-POCSAG Monitor Pro - Sauvegarde
+POCSAG Monitor - Sauvegarde
 Date: $(date)
 Version: $(get_current_version)
 Fichiers sauvegardés: ${#files_to_backup[@]}

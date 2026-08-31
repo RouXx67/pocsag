@@ -1,8 +1,8 @@
-#!/bin/bash
-# Script de déploiement rapide POCSAG Monitor Pro
+﻿#!/bin/bash
+# Script de déploiement rapide POCSAG Monitor
 # Ce script est maintenant un raccourci vers update.sh
 
-echo "🔄 Déploiement rapide POCSAG Monitor Pro"
+echo "🔄 Déploiement rapide POCSAG Monitor"
 echo "   (Utilise maintenant le système de mise à jour avancé)"
 
 # Vérification que le script update.sh existe

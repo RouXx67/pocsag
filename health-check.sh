@@ -1,6 +1,6 @@
-#!/bin/bash
+﻿#!/bin/bash
 #
-# POCSAG Monitor Pro - Vérification de santé du système
+# POCSAG Monitor - Vérification de santé du système
 # Usage: bash health-check.sh
 #
 
@@ -30,7 +30,7 @@ print_error() {
 print_header() {
     echo -e "${BLUE}"
     echo "╔═══════════════════════════════════════╗"
-    echo "║        POCSAG Monitor Pro             ║"
+    echo "║        POCSAG Monitor             ║"
     echo "║      Vérification de santé            ║"
     echo "╚═══════════════════════════════════════╝"
     echo -e "${NC}"

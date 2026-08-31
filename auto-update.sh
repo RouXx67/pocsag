@@ -1,6 +1,6 @@
-#!/bin/bash
+﻿#!/bin/bash
 #
-# POCSAG Monitor Pro - Mise à jour automatique (pour cron)
+# POCSAG Monitor - Mise à jour automatique (pour cron)
 # Usage: bash auto-update.sh
 #
 

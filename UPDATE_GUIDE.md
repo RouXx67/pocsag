@@ -1,8 +1,8 @@
-# Guide de Mise à Jour - POCSAG Monitor Pro
+﻿# Guide de Mise à Jour - POCSAG Monitor
 
 ## 🚀 Système de Mise à Jour Intelligent
 
-POCSAG Monitor Pro dispose d'un système de mise à jour avancé avec sauvegarde automatique et rollback.
+POCSAG Monitor dispose d'un système de mise à jour avancé avec sauvegarde automatique et rollback.
 
 ## 📋 Scripts de Mise à Jour
 

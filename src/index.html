@@ -100,6 +100,18 @@
 
     <div id="tab-settings" class="tab-content">
       <div class="card">
+        <h2>📻 Fréquences RTL-SDR (max 3)</h2>
+        <p style="color:var(--sub); font-size:0.85rem; margin-top:0;">Modifier <code>rtl_fm -f ...</code> du service <code>systemd/pocsag.service</code>. Laisser vide pour désactiver une entrée.</p>
+        <div id="freqList" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;"></div>
+        <button class="btn-secondary" onclick="addFreqField()">+ Ajouter une fréquence</button>
+        <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
+          <button onclick="saveFrequencies()">Enregistrer fréquences</button>
+          <button class="btn-secondary" onclick="restartService()">🔄 Redémarrer service</button>
+          <span id="freqStatus" class="status-msg"></span>
+        </div>
+        <div style="color:var(--sub); font-size:0.75rem; margin-top:6px;">Exemples: <code>85.955M</code>, <code>173512.5k</code>, <code>173.5125M</code> — redémarrage requis pour prise en compte.</div>
+      </div>
+      <div class="card">
         <h2>⚙️ Configuration Discord & Telegram</h2>
         <div style="margin-bottom:15px;">
           <label style="font-weight:bold; display:block; margin-bottom:5px;">Discord Webhook :</label>
@@ -130,7 +142,7 @@
   </div>
 
   <script>
-    let globalData = [], globalConfig = { discord_webhook: "", telegram_bot_token: "", telegram_chat_id: "", notify_empty: true, aliases: {}, blacklist: [], keywords: [] };
+    let globalData = [], globalConfig = { discord_webhook: "", telegram_bot_token: "", telegram_chat_id: "", notify_empty: true, aliases: {}, blacklist: [], keywords: [], frequencies: ["85.955M", "173512.5k"] };
 
     function switchTab(id, evt) {
       document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
@@ -140,15 +152,61 @@
       document.getElementById("tab-" + id).classList.add("active");
     }
 
+    function renderFreqInputs() {
+      const container = document.getElementById("freqList");
+      const freqs = globalConfig.frequencies || ["85.955M", "173512.5k"];
+      container.innerHTML = freqs.map((f, i) => `
+        <div style="display:flex; gap:8px; align-items:center;">
+          <span style="color:var(--sub); min-width:24px;">${i+1}.</span>
+          <input type="text" class="freq-input" data-idx="${i}" value="${f}" placeholder="ex: 85.955M" style="flex:1;">
+          <button class="btn-danger" onclick="removeFreq(${i})" title="Retirer">✕</button>
+        </div>
+      `).join("") + (freqs.length < 3 ? "" : "<div style='color:var(--sub); font-size:0.75rem;'>Limite 3 fréquences atteinte</div>");
+    }
+    function addFreqField() {
+      if ((globalConfig.frequencies || []).length >= 3) { showStatus("freqStatus","Limite 3 fréquences max","error"); return; }
+      globalConfig.frequencies = globalConfig.frequencies || [];
+      globalConfig.frequencies.push("");
+      renderFreqInputs();
+    }
+    function removeFreq(idx) {
+      globalConfig.frequencies.splice(idx,1);
+      if (globalConfig.frequencies.length === 0) globalConfig.frequencies = [""];
+      renderFreqInputs();
+    }
+    async function saveFrequencies() {
+      const inputs = document.querySelectorAll(".freq-input");
+      const freqs = Array.from(inputs).map(el => el.value.trim()).filter(v => v);
+      if (freqs.length === 0) { showStatus("freqStatus","Au moins une fréquence requise","error"); return; }
+      if (freqs.length > 3) { showStatus("freqStatus","Max 3 fréquences","error"); return; }
+      // validation simple
+      const re = /^\d+(\.\d+)?\s*[kKmM]?(?:Hz)?$/;
+      for (const f of freqs) { if (!re.test(f.replace(/\s+/g,""))) { showStatus("freqStatus","Format invalide: "+f,"error"); return; } }
+      globalConfig.frequencies = freqs;
+      const res = await fetch("/api/config", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(globalConfig)});
+      if (res.ok) { showStatus("freqStatus","Fréquences enregistrées - redémarrage requis","success"); }
+      else { showStatus("freqStatus","Erreur enregistrement","error"); }
+    }
+    async function restartService() {
+      showStatus("freqStatus","Redémarrage...", "");
+      try {
+        const res = await fetch("/api/service/restart", {method:"POST"});
+        const j = await res.json();
+        showStatus("freqStatus", res.ok ? "✅ Service redémarré" : "❌ "+(j.error||"échec"), res.ok?"success":"error");
+      } catch(e){ showStatus("freqStatus","❌ "+e.message,"error"); }
+    }
+
     async function loadConfig() {
       try {
         const res = await fetch("/api/config");
         globalConfig = await res.json();
+        if (!globalConfig.frequencies || !Array.isArray(globalConfig.frequencies)) globalConfig.frequencies = ["85.955M", "173512.5k"];
         document.getElementById("webhookUrl").value = globalConfig.discord_webhook || "";
         document.getElementById("tgToken").value = globalConfig.telegram_bot_token || "";
         document.getElementById("tgChatId").value = globalConfig.telegram_chat_id || "";
         document.getElementById("notifyEmpty").checked = globalConfig.notify_empty !== false;
         document.getElementById("keywordsInput").value = (globalConfig.keywords || []).join(", ");
+        renderFreqInputs();
         renderAliases();
         renderBlacklist();
       } catch(e){}

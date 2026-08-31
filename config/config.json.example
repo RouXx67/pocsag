@@ -15,5 +15,9 @@
     "DESINCARCERATION",
     "RENFORT",
     "URGENT"
+  ],
+  "frequencies": [
+    "85.955M",
+    "173512.5k"
   ]
 }

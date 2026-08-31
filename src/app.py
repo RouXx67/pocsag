@@ -8,25 +8,105 @@ from datetime import datetime
 
 CONFIG_FILE = "/opt/pocsag/config.json"
 LOG_FILE = "/var/www/html/data.json"
+SERVICE_FILE = "/etc/systemd/system/pocsag.service"
+DEFAULT_FREQUENCIES = ["85.955M", "173512.5k"]
+
+DEFAULT_CONFIG = {
+    "discord_webhook": "",
+    "telegram_bot_token": "",
+    "telegram_chat_id": "",
+    "notify_empty": True,
+    "aliases": {},
+    "blacklist": [],
+    "keywords": ["AVP", "FEU", "DESINCARCERATION", "RENFORT", "URGENT"],
+    "frequencies": DEFAULT_FREQUENCIES.copy()
+}
 
 def get_config():
     try:
         with open(CONFIG_FILE, "r") as f:
-            return json.load(f)
+            cfg = json.load(f)
+            # Migration : ajouter frequencies si absent
+            if "frequencies" not in cfg:
+                cfg["frequencies"] = DEFAULT_FREQUENCIES.copy()
+            return cfg
     except Exception:
-        return {
-            "discord_webhook": "",
-            "telegram_bot_token": "",
-            "telegram_chat_id": "",
-            "notify_empty": True,
-            "aliases": {},
-            "blacklist": [],
-            "keywords": ["AVP", "FEU", "DESINCARCERATION", "RENFORT", "URGENT"]
-        }
+        return DEFAULT_CONFIG.copy()
 
 def save_config(cfg):
+    # Normaliser frequencies avant sauvegarde
+    if "frequencies" in cfg:
+        cfg["frequencies"] = normalize_frequencies(cfg["frequencies"])
     with open(CONFIG_FILE, "w") as f:
         json.dump(cfg, f, indent=2)
+    # Mettre à jour le service systemd si frequencies a changé
+    try:
+        freqs = cfg.get("frequencies", DEFAULT_FREQUENCIES)
+        update_pocsag_service(freqs)
+    except Exception as e:
+        print(f"Erreur update service: {e}")
+
+FREQ_RE = re.compile(r"^\s*\d+(\.\d+)?\s*[kKmM]?(?:Hz)?\s*$")
+
+def normalize_frequencies(freqs):
+    """Valide et normalise la liste de fréquences : max 3, format rtl_fm."""
+    if not isinstance(freqs, list):
+        return DEFAULT_FREQUENCIES.copy()
+    cleaned = []
+    for f in freqs:
+        if not isinstance(f, str):
+            f = str(f)
+        f = f.strip()
+        if not f:
+            continue
+        # Accepte 85.955M, 85.955MHz, 173512.5k, 173.5125M ...
+        # Normaliser : supprimer espaces, garder tel quel si match
+        if FREQ_RE.match(f):
+            # Supprimer espaces internes et uniformiser : ex "85.955 MHz" -> "85.955M"
+            f = re.sub(r"\s+", "", f)
+            cleaned.append(f)
+        if len(cleaned) >= 3:
+            break
+    return cleaned if cleaned else DEFAULT_FREQUENCIES.copy()
+
+def update_pocsag_service(frequencies):
+    """Réécrit ExecStart dans /etc/systemd/system/pocsag.service avec les fréquences données."""
+    freqs = normalize_frequencies(frequencies)
+    # Construire la partie -f
+    freq_args = " ".join(f"-f {f}" for f in freqs)
+    exec_start = f'/bin/bash -c "rtl_fm {freq_args} -M fm -s 176400 -r 22050 -E offset -l 0 -g 19.2 | multimon-ng -t raw -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -f alpha - | python3 /opt/pocsag/app.py"'
+    # Template exact demandé par l'utilisateur (sans toucher autre que ExecStart)
+    content = f"""[Unit]
+Description=Decoder POCSAG RTL-SDR vers Web, Telegram et Discord
+After=network.target nginx.service
+
+[Service]
+Type=simple
+User=root
+ExecStart={exec_start}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+"""
+    # Éviter réécriture inutile
+    try:
+        with open(SERVICE_FILE, "r") as f:
+            existing = f.read()
+        if existing == content:
+            return True
+    except Exception:
+        pass
+    with open(SERVICE_FILE, "w") as f:
+        f.write(content)
+    # Rechargement systemd (non bloquant)
+    try:
+        import subprocess
+        subprocess.run(["systemctl", "daemon-reload"], timeout=5)
+    except Exception as e:
+        print(f"daemon-reload echoue: {e}")
+    return True
 
 def extract_address(message):
     if not message:
@@ -245,6 +325,38 @@ class APIHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps({"success": True, "message": "Tests envoyés"}).encode())
+        elif path == "/api/service/restart":
+            try:
+                import subprocess
+                # daemon-reload déjà fait dans update_pocsag_service, on redémarre
+                subprocess.run(["systemctl", "restart", "pocsag"], timeout=10)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"status":"restarted"}')
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode())
+            return
+        elif path == "/api/service/status":
+            try:
+                import subprocess
+                r = subprocess.run(["systemctl", "is-active", "pocsag"], capture_output=True, text=True, timeout=3)
+                active = r.stdout.strip() == "active"
+                # Lire frequencies actuelles du fichier service pour debug
+                freqs = get_config().get("frequencies", DEFAULT_FREQUENCIES)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"active": active, "frequencies": freqs}).encode())
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode())
+            return
         else:
             self.send_error(404)
 

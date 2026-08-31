@@ -191,7 +191,9 @@
       showStatus("freqStatus","Redémarrage...", "");
       try {
         const res = await fetch("/api/service/restart", {method:"POST"});
-        const j = await res.json();
+        const text = await res.text();
+        if (text.trim().startsWith("<")) throw new Error("API indisponible");
+        const j = JSON.parse(text);
         showStatus("freqStatus", res.ok ? "✅ Service redémarré" : "❌ "+(j.error||"échec"), res.ok?"success":"error");
       } catch(e){ showStatus("freqStatus","❌ "+e.message,"error"); }
     }
@@ -199,7 +201,13 @@
     async function loadConfig() {
       try {
         const res = await fetch("/api/config");
-        globalConfig = await res.json();
+        const text = await res.text();
+        // Backend down -> nginx renvoie du HTML (502) au lieu de JSON
+        if (!res.ok || !text || text.trim().startsWith("<")) {
+          console.warn("API /api/config indisponible", res.status, text.slice(0,100));
+          throw new Error("API indisponible");
+        }
+        globalConfig = JSON.parse(text);
         if (!globalConfig.frequencies || !Array.isArray(globalConfig.frequencies)) globalConfig.frequencies = ["85.955M", "173512.5k"];
         document.getElementById("webhookUrl").value = globalConfig.discord_webhook || "";
         document.getElementById("tgToken").value = globalConfig.telegram_bot_token || "";
@@ -209,7 +217,12 @@
         renderFreqInputs();
         renderAliases();
         renderBlacklist();
-      } catch(e){}
+      } catch(e){
+        console.warn("loadConfig fallback", e);
+        // Garder config par défaut pour que l'UI reste utilisable
+        if (!globalConfig.frequencies) globalConfig.frequencies = ["85.955M", "173512.5k"];
+        renderFreqInputs();
+      }
     }
 
     async function saveSettings() {
@@ -224,9 +237,15 @@
 
     async function testDiscord() {
       showStatus("settingsStatus", "Envoi...", "");
-      const res = await fetch("/api/test-discord", { method: "POST" });
-      const data = await res.json();
-      showStatus("settingsStatus", data.success ? "✅ Envoyé !" : "❌ Échec", data.success ? "success" : "error");
+      try {
+        const res = await fetch("/api/test-discord", { method: "POST" });
+        const text = await res.text();
+        if (text.trim().startsWith("<")) throw new Error("API indisponible (service pocsag down)");
+        const data = JSON.parse(text);
+        showStatus("settingsStatus", data.success ? "✅ Envoyé !" : "❌ Échec", data.success ? "success" : "error");
+      } catch(e){
+        showStatus("settingsStatus", "❌ "+e.message, "error");
+      }
     }
 
     async function saveAlias() {

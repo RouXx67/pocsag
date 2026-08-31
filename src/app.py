@@ -72,9 +72,9 @@ def normalize_frequencies(freqs):
 def update_pocsag_service(frequencies):
     """Réécrit ExecStart dans /etc/systemd/system/pocsag.service avec les fréquences données."""
     freqs = normalize_frequencies(frequencies)
-    # Construire la partie -f
+    # Construire la partie -f — squelch 50 requis pour scan multi-fréquences (rtl_fm quitte avec -l 0)
     freq_args = " ".join(f"-f {f}" for f in freqs)
-    exec_start = f'/bin/bash -c "rtl_fm {freq_args} -M fm -s 176400 -r 22050 -E offset -l 0 -g 19.2 | multimon-ng -t raw -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -f alpha - | python3 /opt/pocsag/app.py"'
+    exec_start = f'/bin/bash -c "rtl_fm {freq_args} -M fm -s 176400 -r 22050 -E offset -l 50 -g 19.2 | multimon-ng -t raw -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -f alpha - | python3 /opt/pocsag/app.py"'
     # Template exact demandé par l'utilisateur (sans toucher autre que ExecStart)
     content = f"""[Unit]
 Description=Decoder POCSAG RTL-SDR vers Web, Telegram et Discord
@@ -366,10 +366,29 @@ class APIHandler(BaseHTTPRequestHandler):
 threading.Thread(target=lambda: HTTPServer(("127.0.0.1", 8080), APIHandler).serve_forever(), daemon=True).start()
 
 regex = re.compile(r"POCSAG\d+:\s+Address:\s+(\d+)\s+Function:\s+(\d+)(?:\s+Alpha:\s+(.*))?")
-for line in sys.stdin:
-    match = regex.search(line)
-    if match:
-        ric, func, text = match.groups()
-        text = text.strip() if text else ""
-        process_notifications(ric, func, text)
-        save_to_web(ric, func, text)
+# Boucle résiliente : garde le serveur HTTP vivant même si stdin se ferme (rtl_fm crash)
+import time
+while True:
+    try:
+        for line in sys.stdin:
+            match = regex.search(line)
+            if match:
+                ric, func, text = match.groups()
+                text = text.strip() if text else ""
+                try:
+                    process_notifications(ric, func, text)
+                except Exception as e:
+                    print(f"Erreur notifications: {e}")
+                try:
+                    save_to_web(ric, func, text)
+                except Exception as e:
+                    print(f"Erreur save: {e}")
+        # stdin EOF (rtl_fm arrêté) -> attendre avant de laisser systemd redémarrer
+        print("Stdin fermé, attente 2s avant relecture...")
+        time.sleep(2)
+        # Si on arrive ici, le service va être redémarré par systemd ; on garde HTTP vivant
+        # Ne pas quitter immédiatement pour éviter 502 nginx -> frontend JSON error
+        time.sleep(5)
+    except Exception as e:
+        print(f"Erreur boucle principale: {e}")
+        time.sleep(2)

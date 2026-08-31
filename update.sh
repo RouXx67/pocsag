@@ -608,6 +608,15 @@ main() {
     
     # Création de la sauvegarde
     create_backup
+
+    # Mise à jour du dépôt git avant copie (sinon VERSION et fichiers restent anciens)
+    if [ -d "$SCRIPT_DIR/.git" ]; then
+        print_status "Mise à jour du dépôt git (pull)..."
+        if ! git -C "$SCRIPT_DIR" pull --ff-only 2>&1 | tail -5; then
+            print_warning "git pull --ff-only a échoué, tentative merge..."
+            git -C "$SCRIPT_DIR" pull 2>&1 | tail -5 || true
+        fi
+    fi
     
     # Mise à jour
     if update_files; then

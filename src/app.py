@@ -23,6 +23,59 @@ def get_version():
         except Exception:
             return "1.0.0"
 
+def parse_service_file():
+    """Parse le fichier service et retourne les paramètres structurés + brut."""
+    result = {
+        "description": "Decoder POCSAG RTL-SDR vers Web, Telegram et Discord",
+        "after": "network.target nginx.service",
+        "service_type": "simple",
+        "user": "root",
+        "squelch": 50,
+        "gain": "19.2",
+        "sample_rate": "176400",
+        "output_rate": "22050",
+        "restart": "always",
+        "restart_sec": 5,
+        "raw": ""
+    }
+    try:
+        with open(SERVICE_FILE, "r") as f:
+            content = f.read()
+        result["raw"] = content
+        for line in content.split("\n"):
+            line = line.strip()
+            if line.startswith("Description="):
+                result["description"] = line.split("=", 1)[1]
+            elif line.startswith("After="):
+                result["after"] = line.split("=", 1)[1]
+            elif line.startswith("Type="):
+                result["service_type"] = line.split("=", 1)[1]
+            elif line.startswith("User="):
+                result["user"] = line.split("=", 1)[1]
+            elif line.startswith("Restart="):
+                result["restart"] = line.split("=", 1)[1]
+            elif line.startswith("RestartSec="):
+                try: result["restart_sec"] = int(line.split("=", 1)[1])
+                except ValueError: pass
+            elif line.startswith("ExecStart="):
+                exec_start = line.split("=", 1)[1]
+                m = re.search(r'rtl_fm\s+(.*?)\s*\|', exec_start)
+                if m:
+                    rtl_args = m.group(1)
+                    sl = re.search(r'-l\s+(\S+)', rtl_args)
+                    if sl:
+                        try: result["squelch"] = int(sl.group(1))
+                        except ValueError: pass
+                    g = re.search(r'-g\s+(\S+)', rtl_args)
+                    if g: result["gain"] = g.group(1)
+                    s = re.search(r'-s\s+(\S+)', rtl_args)
+                    if s: result["sample_rate"] = s.group(1)
+                    rm = re.search(r'-r\s+(\S+)', rtl_args)
+                    if rm: result["output_rate"] = rm.group(1)
+    except Exception:
+        pass
+    return result
+
 DEFAULT_CONFIG = {
     "discord_webhook": "",
     "telegram_bot_token": "",
@@ -84,20 +137,31 @@ def normalize_frequencies(freqs):
 def update_pocsag_service(frequencies):
     """Réécrit ExecStart dans /etc/systemd/system/pocsag.service avec les fréquences données."""
     freqs = normalize_frequencies(frequencies)
-    # Construire la partie -f — squelch 50 requis pour scan multi-fréquences (rtl_fm quitte avec -l 0)
+    cfg = get_config()
+    svc = cfg.get("service", {})
+    squelch = svc.get("squelch", 50)
+    gain = svc.get("gain", "19.2")
+    sample_rate = svc.get("sample_rate", "176400")
+    output_rate = svc.get("output_rate", "22050")
+    restart = svc.get("restart", "always")
+    restart_sec = svc.get("restart_sec", 5)
     freq_args = " ".join(f"-f {f}" for f in freqs)
-    exec_start = f'/bin/bash -c "rtl_fm {freq_args} -M fm -s 176400 -r 22050 -E offset -l 50 -g 19.2 | multimon-ng -t raw -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -f alpha - | python3 /opt/pocsag/app.py"'
+    exec_start = f'/bin/bash -c "rtl_fm {freq_args} -M fm -s {sample_rate} -r {output_rate} -E offset -l {squelch} -g {gain} | multimon-ng -t raw -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -f alpha - | python3 /opt/pocsag/app.py"'
     # Template exact demandé par l'utilisateur (sans toucher autre que ExecStart)
+    description = svc.get("description", "Decoder POCSAG RTL-SDR vers Web, Telegram et Discord")
+    after = svc.get("after", "network.target nginx.service")
+    service_type = svc.get("service_type", "simple")
+    user = svc.get("user", "root")
     content = f"""[Unit]
-Description=Decoder POCSAG RTL-SDR vers Web, Telegram et Discord
-After=network.target nginx.service
+Description={description}
+After={after}
 
 [Service]
-Type=simple
-User=root
+Type={service_type}
+User={user}
 ExecStart={exec_start}
-Restart=always
-RestartSec=5
+Restart={restart}
+RestartSec={restart_sec}
 
 [Install]
 WantedBy=multi-user.target
@@ -305,6 +369,29 @@ class APIHandler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
             self.wfile.write(json.dumps({"version": get_version()}).encode())
+        elif self.path == "/api/service/config" or self.path.startswith("/api/service/config?"):
+            cfg = parse_service_file()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            self.wfile.write(json.dumps(cfg).encode())
+        elif self.path == "/api/logs" or self.path.startswith("/api/logs?"):
+            try:
+                import subprocess
+                r = subprocess.run(
+                    ["journalctl", "-u", "pocsag", "-n", "200", "--no-pager", "--output=short-iso"],
+                    capture_output=True, text=True, timeout=5
+                )
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(r.stdout.encode())
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "text/plain")
+                self.end_headers()
+                self.wfile.write(f"Erreur: {e}".encode())
         else:
             self.send_error(404)
 
@@ -377,12 +464,67 @@ class APIHandler(BaseHTTPRequestHandler):
                 import subprocess
                 r = subprocess.run(["systemctl", "is-active", "pocsag"], capture_output=True, text=True, timeout=3)
                 active = r.stdout.strip() == "active"
-                # Lire frequencies actuelles du fichier service pour debug
                 freqs = get_config().get("frequencies", DEFAULT_FREQUENCIES)
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"active": active, "frequencies": freqs}).encode())
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode())
+            return
+        elif path == "/api/service/config":
+            try:
+                cfg = json.loads(body) if body else {}
+            except Exception:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error":"invalid json"}')
+                return
+            raw = cfg.get("raw", "").strip()
+            if raw:
+                service_content = raw
+            else:
+                config = get_config()
+                freqs = config.get("frequencies", DEFAULT_FREQUENCIES)
+                freq_args = " ".join(f"-f {f}" for f in freqs)
+                squelch = cfg.get("squelch", 50)
+                gain = cfg.get("gain", "19.2")
+                sample_rate = cfg.get("sample_rate", "176400")
+                output_rate = cfg.get("output_rate", "22050")
+                restart = cfg.get("restart", "always")
+                restart_sec = cfg.get("restart_sec", 5)
+                description = cfg.get("description", "Decoder POCSAG RTL-SDR vers Web, Telegram et Discord")
+                after = cfg.get("after", "network.target nginx.service")
+                service_type = cfg.get("service_type", "simple")
+                user = cfg.get("user", "root")
+                exec_start = f'/bin/bash -c "rtl_fm {freq_args} -M fm -s {sample_rate} -r {output_rate} -E offset -l {squelch} -g {gain} | multimon-ng -t raw -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -f alpha - | python3 /opt/pocsag/app.py"'
+                service_content = f"""[Unit]
+Description={description}
+After={after}
+
+[Service]
+Type={service_type}
+User={user}
+ExecStart={exec_start}
+Restart={restart}
+RestartSec={restart_sec}
+
+[Install]
+WantedBy=multi-user.target
+"""
+            try:
+                with open(SERVICE_FILE, "w") as f:
+                    f.write(service_content)
+                import subprocess
+                subprocess.run(["systemctl", "daemon-reload"], timeout=5)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok"}).encode())
             except Exception as e:
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json")

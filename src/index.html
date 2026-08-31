@@ -39,6 +39,10 @@
     .status-msg { margin-top: 10px; font-size: 0.85rem; }
     .status-msg.success { color: #4ade80; }
     .status-msg.error { color: #f87171; }
+    .logs-console { background:#000; color:#4ade80; border:1px solid var(--border); border-radius:8px; padding:15px; max-height:500px; overflow-y:auto; font-size:0.8rem; white-space:pre-wrap; word-break:break-all; font-family:monospace; }
+    .service-grid { display:grid; grid-template-columns:1fr 1fr; gap:15px; }
+    select { background:#000; border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px; }
+    textarea { width:100%; background:#000; color:#4ade80; border:1px solid var(--border); border-radius:8px; padding:15px; font-family:monospace; font-size:0.8rem; resize:vertical; }
   </style>
 </head>
 <body>
@@ -50,6 +54,7 @@
         <button class="tab-btn" onclick="switchTab('aliases', event)">🏷️ Alias RIC</button>
         <button class="tab-btn" onclick="switchTab('blacklist', event)">🚫 Blacklist</button>
         <button class="tab-btn" onclick="switchTab('settings', event)">⚙️ Settings</button>
+        <button class="tab-btn" onclick="switchTab('console', event)">📋 Console</button>
       </div>
     </header>
 
@@ -113,6 +118,48 @@
         <div style="color:var(--sub); font-size:0.75rem; margin-top:6px;">Exemples: <code>85.955M</code>, <code>173512.5k</code>, <code>173.5125M</code> — redémarrage requis pour prise en compte.</div>
       </div>
       <div class="card">
+        <h2>⚙️ Paramètres RTL-SDR / Service</h2>
+        <div class="service-grid">
+          <div>
+            <label style="font-weight:bold; display:block; margin-bottom:5px;">Squelch (-l) :</label>
+            <input type="number" id="squelchInput" value="50" min="0" max="100" style="width:100%;">
+          </div>
+          <div>
+            <label style="font-weight:bold; display:block; margin-bottom:5px;">Gain (-g) :</label>
+            <input type="text" id="gainInput" value="19.2" style="width:100%;">
+          </div>
+          <div>
+            <label style="font-weight:bold; display:block; margin-bottom:5px;">Sample rate (-s) :</label>
+            <input type="text" id="sampleRateInput" value="176400" style="width:100%;">
+          </div>
+          <div>
+            <label style="font-weight:bold; display:block; margin-bottom:5px;">Output rate (-r) :</label>
+            <input type="text" id="outputRateInput" value="22050" style="width:100%;">
+          </div>
+          <div>
+            <label style="font-weight:bold; display:block; margin-bottom:5px;">Restart :</label>
+            <select id="restartModeInput" style="width:100%;">
+              <option value="always">always</option>
+              <option value="on-failure">on-failure</option>
+              <option value="no">no</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-weight:bold; display:block; margin-bottom:5px;">RestartSec :</label>
+            <input type="number" id="restartSecInput" value="5" min="1" style="width:100%;">
+          </div>
+        </div>
+        <div style="margin-top:15px;">
+          <label style="font-weight:bold; display:block; margin-bottom:5px;">Description :</label>
+          <input type="text" id="serviceDescInput" value="Decoder POCSAG RTL-SDR vers Web, Telegram et Discord" style="width:100%;">
+        </div>
+        <div style="margin-top:15px; display:flex; gap:8px; align-items:center;">
+          <button onclick="saveServiceConfig()">Enregistrer paramètres service</button>
+          <button class="btn-secondary" onclick="restartService()">🔄 Redémarrer</button>
+          <span id="serviceConfigStatus" class="status-msg"></span>
+        </div>
+      </div>
+      <div class="card">
         <h2>⚙️ Configuration Discord & Telegram</h2>
         <div style="margin-bottom:15px;">
           <label style="font-weight:bold; display:block; margin-bottom:5px;">Discord Webhook :</label>
@@ -138,6 +185,30 @@
         <button onclick="saveSettings()">Enregistrer les paramètres</button>
         <button class="btn-secondary" onclick="testDiscord()">Envoyer un test</button>
         <div id="settingsStatus" class="status-msg"></div>
+      </div>
+      <div class="card">
+        <h2>📄 Fichier service brut</h2>
+        <p style="color:var(--sub); font-size:0.85rem; margin-top:0;">Édition avancée de <code>/etc/systemd/system/pocsag.service</code></p>
+        <textarea id="serviceRawInput" rows="12"></textarea>
+        <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
+          <button onclick="saveServiceRaw()">Écrire le fichier service</button>
+          <button class="btn-secondary" onclick="loadServiceConfig()">🔄 Recharger</button>
+          <span id="serviceRawStatus" class="status-msg"></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-console" class="tab-content">
+      <div class="card">
+        <h2>📋 Logs du service POCSAG</h2>
+        <div style="display:flex; gap:12px; margin-bottom:10px; align-items:center;">
+          <button class="btn-secondary" onclick="fetchLogs()">🔄 Rafraîchir</button>
+          <label style="display:flex; align-items:center; gap:5px; color:var(--sub); font-size:0.85rem;">
+            <input type="checkbox" id="autoRefreshLogs" checked onchange="toggleAutoRefreshLogs()"> Auto-refresh (5s)
+          </label>
+          <span id="logsStatus" class="status-msg"></span>
+        </div>
+        <pre id="logsConsole" class="logs-console">Chargement des logs...</pre>
       </div>
     </div>
   </div>
@@ -218,6 +289,7 @@
         renderFreqInputs();
         renderAliases();
         renderBlacklist();
+        loadServiceConfig();
       } catch(e){
         console.warn("loadConfig fallback", e);
         // Garder config par défaut pour que l'UI reste utilisable
@@ -366,6 +438,76 @@
       el.style.display = el.style.display === "none" ? "block" : "none";
     }
 
+    async function loadServiceConfig() {
+      try {
+        const res = await fetch("/api/service/config");
+        const text = await res.text();
+        if (!res.ok || text.trim().startsWith("<")) throw new Error();
+        const cfg = JSON.parse(text);
+        document.getElementById("squelchInput").value = cfg.squelch ?? 50;
+        document.getElementById("gainInput").value = cfg.gain ?? "19.2";
+        document.getElementById("sampleRateInput").value = cfg.sample_rate ?? "176400";
+        document.getElementById("outputRateInput").value = cfg.output_rate ?? "22050";
+        document.getElementById("restartModeInput").value = cfg.restart ?? "always";
+        document.getElementById("restartSecInput").value = cfg.restart_sec ?? 5;
+        document.getElementById("serviceDescInput").value = cfg.description ?? "";
+        document.getElementById("serviceRawInput").value = cfg.raw ?? "";
+      } catch(e) { console.warn("loadServiceConfig", e); }
+    }
+
+    async function saveServiceConfig() {
+      const svc = {
+        squelch: parseInt(document.getElementById("squelchInput").value) || 50,
+        gain: document.getElementById("gainInput").value.trim() || "19.2",
+        sample_rate: document.getElementById("sampleRateInput").value.trim() || "176400",
+        output_rate: document.getElementById("outputRateInput").value.trim() || "22050",
+        restart: document.getElementById("restartModeInput").value,
+        restart_sec: parseInt(document.getElementById("restartSecInput").value) || 5,
+        description: document.getElementById("serviceDescInput").value.trim()
+      };
+      globalConfig.service = svc;
+      try {
+        const res = await fetch("/api/config", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(globalConfig) });
+        showStatus("serviceConfigStatus", res.ok ? "✅ Paramètres enregistrés" : "❌ Erreur", res.ok ? "success" : "error");
+        if (res.ok) loadServiceConfig();
+      } catch(e) { showStatus("serviceConfigStatus", "❌ "+e.message, "error"); }
+    }
+
+    async function saveServiceRaw() {
+      const raw = document.getElementById("serviceRawInput").value;
+      try {
+        const res = await fetch("/api/service/config", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({raw: raw}) });
+        const text = await res.text();
+        if (text.trim().startsWith("<")) throw new Error("API indisponible");
+        const j = JSON.parse(text);
+        showStatus("serviceRawStatus", j.status === "ok" ? "✅ Fichier service écrit" : "❌ "+(j.error||"échec"), j.status === "ok" ? "success" : "error");
+        if (j.status === "ok") loadServiceConfig();
+      } catch(e) { showStatus("serviceRawStatus", "❌ "+e.message, "error"); }
+    }
+
+    let logsInterval = null;
+    async function fetchLogs() {
+      try {
+        const res = await fetch("/api/logs");
+        const text = await res.text();
+        const el = document.getElementById("logsConsole");
+        el.textContent = text || "(vide)";
+        el.scrollTop = el.scrollHeight;
+      } catch(e) {
+        document.getElementById("logsConsole").textContent = "Erreur: " + e.message;
+      }
+    }
+
+    function toggleAutoRefreshLogs() {
+      if (document.getElementById("autoRefreshLogs").checked) {
+        if (logsInterval) clearInterval(logsInterval);
+        logsInterval = setInterval(fetchLogs, 5000);
+      } else {
+        clearInterval(logsInterval);
+        logsInterval = null;
+      }
+    }
+
     async function loadVersion() {
       try {
         const res = await fetch("/api/version");
@@ -381,6 +523,7 @@
     function showStatus(id, msg, type) { const el = document.getElementById(id); el.textContent = msg; el.className = "status-msg " + type; }
 
     loadVersion(); loadConfig(); setInterval(fetchMessages, 3000); fetchMessages();
+    fetchLogs(); toggleAutoRefreshLogs();
   </script>
 </body>
 </html>

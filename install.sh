@@ -5,12 +5,21 @@
 #
 
 set -e
+export PATH="$PATH:/usr/sbin:/sbin:/usr/local/sbin"
 
 # Couleurs
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
+
+nginx_bin() {
+    if command -v nginx >/dev/null 2>&1; then command -v nginx
+    elif [ -x /usr/sbin/nginx ]; then echo /usr/sbin/nginx
+    elif [ -x /sbin/nginx ]; then echo /sbin/nginx
+    else echo nginx
+    fi
+}
 
 print_ok() { echo -e "${GREEN}[OK]${NC} $1"; }
 print_err() { echo -e "${RED}[ERREUR]${NC} $1"; }
@@ -171,10 +180,12 @@ rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
 
 # Test configuration nginx
 print_info "Test configuration Nginx..."
-if nginx -t 2>&1; then
+NGINX_BIN="$(nginx_bin)"
+if $NGINX_BIN -t 2>&1; then
   print_ok "Configuration Nginx valide"
 else
   echo -e "${YELLOW}[WARNING] Probleme de configuration Nginx - verification manuelle requise${NC}"
+  $NGINX_BIN -t 2>&1 || true
 fi
 
 # Redémarrage nginx

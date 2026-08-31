@@ -5,6 +5,7 @@
 #
 
 set -e  # Arrêt sur erreur
+export PATH="$PATH:/usr/sbin:/sbin:/usr/local/sbin"
 
 # Couleurs pour l'affichage
 RED='\033[0;31m'
@@ -12,6 +13,15 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Helper nginx (gère /usr/sbin/nginx hors PATH)
+nginx_bin() {
+    if command -v nginx >/dev/null 2>&1; then command -v nginx
+    elif [ -x /usr/sbin/nginx ]; then echo /usr/sbin/nginx
+    elif [ -x /sbin/nginx ]; then echo /sbin/nginx
+    else echo nginx
+    fi
+}
 
 # Fonction d'affichage
 print_status() {
@@ -169,6 +179,14 @@ copy_files() {
 # Configuration Nginx
 configure_nginx() {
     print_status "Configuration de Nginx..."
+
+    # S'assurer que nginx est installé (cas PATH ou paquet manquant)
+    if ! command -v nginx >/dev/null 2>&1 && [ ! -x /usr/sbin/nginx ]; then
+        print_warning "Nginx introuvable, tentative d'installation..."
+        apt update 2>&1 | tail -1 || true
+        apt install -y nginx 2>&1 | tail -3 || true
+    fi
+    mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
     
     if [ -f "config/nginx.conf" ]; then
         cp config/nginx.conf /etc/nginx/sites-available/pocsag-monitor
@@ -181,11 +199,13 @@ configure_nginx() {
             rm /etc/nginx/sites-enabled/default
         fi
         
-        # Test de la configuration
-        if nginx -t; then
+        # Test de la configuration (robuste si nginx hors PATH)
+        NGINX_BIN="$(nginx_bin)"
+        if $NGINX_BIN -t 2>&1; then
             print_success "Configuration Nginx valide"
         else
             print_error "Erreur dans la configuration Nginx"
+            $NGINX_BIN -t 2>&1 || true
             exit 1
         fi
     else

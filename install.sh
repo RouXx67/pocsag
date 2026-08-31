@@ -123,9 +123,11 @@ fi
 
 if [ -f "$SCRIPT_DIR/src/index.html" ]; then
   cp "$SCRIPT_DIR/src/index.html" /var/www/html/index.html
-  chown www-data:www-data /var/www/html/index.html 2>/dev/null || true
-  chmod 644 /var/www/html/index.html 2>/dev/null || true
-  print_ok "index.html -> /var/www/html/index.html"
+  cp "$SCRIPT_DIR/src/manifest.json" /var/www/html/manifest.json 2>/dev/null || true
+  cp "$SCRIPT_DIR/src/sw.js" /var/www/html/sw.js 2>/dev/null || true
+  chown www-data:www-data /var/www/html/index.html /var/www/html/manifest.json /var/www/html/sw.js 2>/dev/null || true
+  chmod 644 /var/www/html/index.html /var/www/html/manifest.json /var/www/html/sw.js 2>/dev/null || true
+  print_ok "index.html, manifest.json, sw.js installes"
 else
   print_err "Fichier src/index.html introuvable"
 fi

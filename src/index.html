@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>POCSAG Monitor — 85.955 MHz / 173.5125 MHz</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0077b6">
   <style>
     :root { --bg: #09090b; --card: #18181b; --border: #27272a; --primary: #0077b6; --danger: #ef4444; --text: #e1e1e6; --sub: #a8a8b3; }
     body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
@@ -74,6 +76,8 @@
       <div class="toolbar">
         <input type="text" id="searchInput" placeholder="🔍 Filtrer par RIC, alias, motif, commune..." onkeyup="renderMessages()">
         <button class="btn-secondary" onclick="clearLogs()">Vider l'historique</button>
+        <button id="installBtn" class="btn-secondary" style="display:none; background:#0077b6;" onclick="installPWA()">📱 Installer l'App</button>
+        <button class="btn-secondary" onclick="requestNotifPermission()">🔔 Activer les Notifs</button>
       </div>
       <table>
         <thead><tr><th style="width:140px;">Heure</th><th style="width:200px;">RIC / Engin</th><th>Message</th><th style="width:180px;">GPS / Maps</th></tr></thead>
@@ -540,6 +544,40 @@
     }
 
     function showStatus(id, msg, type) { const el = document.getElementById(id); el.textContent = msg; el.className = "status-msg " + type; }
+
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const btn = document.getElementById('installBtn');
+      if (btn) btn.style.display = 'inline-block';
+    });
+
+    async function installPWA() {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        document.getElementById('installBtn').style.display = 'none';
+      }
+      deferredPrompt = null;
+    }
+
+    async function requestNotifPermission() {
+      if (!("Notification" in window)) {
+        alert("Ce navigateur ne supporte pas les notifications desktop.");
+        return;
+      }
+      const perm = await Notification.requestPermission();
+      if (perm === "granted") {
+        new Notification("POCSAG Monitor", { body: "Notifications activées avec succès !" });
+      }
+    }
+
+    // Enregistrement Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW error:', err));
+    }
 
     loadVersion(); loadConfig(); setInterval(fetchMessages, 3000); fetchMessages();
     fetchLogs(); toggleAutoRefreshLogs();

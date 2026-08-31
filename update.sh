@@ -333,12 +333,14 @@ update_files() {
         print_success "app.py mis à jour"
     fi
     
-    # Mise à jour index.html
+    # Mise à jour index.html et fichiers PWA
     if [ -f "$SCRIPT_DIR/src/index.html" ]; then
         cp "$SCRIPT_DIR/src/index.html" "/var/www/html/index.html"
-        chown www-data:www-data /var/www/html/index.html 2>/dev/null || true
-        chmod 644 /var/www/html/index.html 2>/dev/null || true
-        print_success "index.html mis à jour"
+        [ -f "$SCRIPT_DIR/src/manifest.json" ] && cp "$SCRIPT_DIR/src/manifest.json" "/var/www/html/manifest.json"
+        [ -f "$SCRIPT_DIR/src/sw.js" ] && cp "$SCRIPT_DIR/src/sw.js" "/var/www/html/sw.js"
+        chown www-data:www-data /var/www/html/index.html /var/www/html/manifest.json /var/www/html/sw.js 2>/dev/null || true
+        chmod 644 /var/www/html/index.html /var/www/html/manifest.json /var/www/html/sw.js 2>/dev/null || true
+        print_success "index.html et PWA mis à jour"
     fi
     
     # Mise à jour du service systemd

@@ -31,7 +31,10 @@
     .badge-ric { background: #0077b6; color: #fff; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-family: monospace; }
     .badge-urgent { background: #dc2626; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; margin-left: 6px; }
     .alias-tag { color: #4ade80; font-weight: 600; margin-left: 6px; }
-    .maps-link { color: #38bdf8; text-decoration: none; font-weight: bold; }
+    .maps-link { color: #38bdf8; text-decoration: none; font-weight: bold; font-size: 0.85rem; }
+    .maps-link + .maps-link { margin-left: 6px; }
+    .mini-map { width: 100%; height: 140px; border: 0; border-radius: 8px; margin-top: 6px; display: block; }
+    .map-toggle { background: transparent; border: 1px solid var(--border); color: var(--sub); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; margin-top: 6px; }
     .status-msg { margin-top: 10px; font-size: 0.85rem; }
     .status-msg.success { color: #4ade80; }
     .status-msg.error { color: #f87171; }
@@ -249,9 +252,24 @@
       const filtered = globalData.filter(m => String(m.ric).toLowerCase().includes(f) || (m.alias||"").toLowerCase().includes(f) || (m.message||"").toLowerCase().includes(f));
       if(!filtered.length) { tbody.innerHTML = "<tr><td colspan='4'>Aucun message.</td></tr>"; return; }
 
-      tbody.innerHTML = filtered.map(m => {
+      tbody.innerHTML = filtered.map((m, idx) => {
         const isUrgent = keywords.some(kw => m.message.toLowerCase().includes(kw.toLowerCase()));
-        const mapsUrl = m.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.address)}` : "";
+        const hasAddr = !!m.address;
+        const hasCoords = m.lat != null && m.lon != null;
+        const gmapsUrl = hasAddr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.address)}` : "";
+        const osmUrl = hasAddr ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(m.address)}` : "";
+        let mapsCell = "-";
+        if (hasAddr) {
+          const bbox = hasCoords ? `${m.lon-0.005},${m.lat-0.005},${m.lon+0.005},${m.lat+0.005}` : "";
+          const osmEmbed = hasCoords ? `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${m.lat},${m.lon}` : "";
+          mapsCell = `
+            <div style="font-size:0.85rem; font-weight:600; margin-bottom:4px;">${m.address}</div>
+            <a class="maps-link" href="${gmapsUrl}" target="_blank">📍 Google</a>
+            <a class="maps-link" href="${osmUrl}" target="_blank">🌍 OSM</a>
+            ${hasCoords ? `<button class="map-toggle" onclick="toggleMap(${idx})">🗺️ Mini-carte</button>
+            <iframe id="map-${idx}" class="mini-map" loading="lazy" src="${osmEmbed}" style="display:none;"></iframe>` : ``}
+          `;
+        }
         return `<tr>
           <td style="color:var(--sub);">${m.date} ${m.time}</td>
           <td>
@@ -260,9 +278,15 @@
             ${isUrgent ? `<span class="badge-urgent">URGENT</span>` : ""}
           </td>
           <td>${m.message}</td>
-          <td>${mapsUrl ? `<a class="maps-link" href="${mapsUrl}" target="_blank">📍 Ouvrir Maps</a>` : "-"}</td>
+          <td>${mapsCell}</td>
         </tr>`;
       }).join("");
+    }
+
+    function toggleMap(idx) {
+      const el = document.getElementById("map-" + idx);
+      if (!el) return;
+      el.style.display = el.style.display === "none" ? "block" : "none";
     }
 
     function showStatus(id, msg, type) { const el = document.getElementById(id); el.textContent = msg; el.className = "status-msg " + type; }

@@ -167,6 +167,15 @@ def save_to_web(ric, func, message):
     if str(ric) in cfg.get("blacklist", []):
         return
 
+    addr = extract_address(message)
+    # Géocodage pour mini-map OSM (BAN, timeout 3s) - n'ecrase pas le flux si échec
+    lat, lon = (None, None)
+    if addr:
+        try:
+            lat, lon = geocode_address(addr)
+        except Exception:
+            lat, lon = None, None
+
     entry = {
         "time": datetime.now().strftime("%H:%M:%S"),
         "date": datetime.now().strftime("%d/%m/%Y"),
@@ -174,7 +183,9 @@ def save_to_web(ric, func, message):
         "alias": cfg.get("aliases", {}).get(str(ric), ""),
         "func": func,
         "message": message if message else "Signal / Sans texte",
-        "address": extract_address(message)
+        "address": addr,
+        "lat": lat,
+        "lon": lon
     }
     try:
         try:

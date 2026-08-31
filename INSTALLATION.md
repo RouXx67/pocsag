@@ -1,4 +1,4 @@
-﻿# Guide d'Installation POCSAG Monitor
+# Guide d'Installation POCSAG Monitor
 
 ## 🚀 Installation Facile (Recommandée)
 

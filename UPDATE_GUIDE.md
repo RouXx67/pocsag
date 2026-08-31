@@ -1,4 +1,4 @@
-﻿# Guide de Mise à Jour - POCSAG Monitor
+# Guide de Mise à Jour - POCSAG Monitor
 
 ## 🚀 Système de Mise à Jour Intelligent
 

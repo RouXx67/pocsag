@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 #
 # POCSAG Monitor - Installation rapide en une ligne
 # Usage: curl -fsSL https://raw.githubusercontent.com/.../quick-install.sh | sudo bash

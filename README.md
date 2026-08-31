@@ -1,4 +1,4 @@
-﻿# POCSAG Monitor
+# POCSAG Monitor
 
 Application autonome de décodage et supervision en temps réel des trames POCSAG utilisées par les services d'urgence (Sapeurs-Pompiers, SAMU, etc.).
 

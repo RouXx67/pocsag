@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 #
 # Configuration des mises à jour automatiques POCSAG Monitor
 # Usage: sudo bash setup-auto-update.sh

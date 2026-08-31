@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 #
 # POCSAG Monitor - Script de désinstallation
 # Usage: sudo bash uninstall.sh

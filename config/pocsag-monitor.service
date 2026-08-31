@@ -1,4 +1,4 @@
-﻿# Fichier systemd service pour POCSAG Monitor
+# Fichier systemd service pour POCSAG Monitor
 # À placer dans /etc/systemd/system/
 
 [Unit]

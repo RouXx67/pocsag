@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 #
 # POCSAG Monitor - Script de mise à jour intelligent
 # Usage: sudo bash update.sh [options]

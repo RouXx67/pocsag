@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 #
 # POCSAG Monitor - Script d'installation automatique
 # Usage: sudo bash setup.sh

@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 #
 # POCSAG Monitor - Vérification de santé du système
 # Usage: bash health-check.sh

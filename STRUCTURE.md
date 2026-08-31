@@ -1,4 +1,4 @@
-﻿# Structure POCSAG Monitor
+# Structure POCSAG Monitor
 
 ## Arborescence corrigée ✅
 

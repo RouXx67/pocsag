@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # Script de déploiement rapide POCSAG Monitor
 # Ce script est maintenant un raccourci vers update.sh
 

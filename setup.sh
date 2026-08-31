@@ -116,6 +116,16 @@ install_dependencies() {
 check_rtl_sdr() {
     print_status "Vérification du dongle RTL-SDR..."
     
+    # Blacklist du module kernel DVB (sinon rtl_fm ne peut pas ouvrir le dongle)
+    print_status "Blacklist du module kernel dvb_usb_rtl28xxu..."
+    if [ ! -f /etc/modprobe.d/blacklist-rtlsdr.conf ]; then
+        echo "blacklist dvb_usb_rtl28xxu" > /etc/modprobe.d/blacklist-rtlsdr.conf
+        print_success "Module kernel blacklist"
+    else
+        print_success "Blacklist RTL-SDR deja present"
+    fi
+    modprobe -r dvb_usb_rtl28xxu 2>/dev/null || true
+    
     if lsusb | grep -i "realtek\|rtl28"; then
         print_success "Dongle RTL-SDR détecté !"
     else

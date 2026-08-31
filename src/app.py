@@ -280,7 +280,11 @@ def send_discord(ric, func, message, is_test=False):
     if addr:
         encoded_addr = requests.utils.quote(addr)
         gmaps_url = f"https://www.google.com/maps/search/?api=1&query={encoded_addr}"
-        osm_url = f"https://www.openstreetmap.org/search?query={encoded_addr}"
+        lat, lon = geocode_address(addr)
+        if lat and lon:
+            osm_url = f"https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=16/{lat}/{lon}"
+        else:
+            osm_url = f"https://www.openstreetmap.org/search?query={encoded_addr}"
         fields.append({
             "name": "📍 Localisation",
             "value": f"**{addr}**\n🗺️ [Google Maps]({gmaps_url}) | 🌍 [OpenStreetMap]({osm_url})",

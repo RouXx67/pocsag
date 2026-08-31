@@ -559,6 +559,19 @@ main() {
     check_installation
     setup_backup_dir
     
+    # Mise à jour du dépôt git EN PREMIER (pour que check_for_updates compare avec la dernière version distante)
+    if [ -d "$SCRIPT_DIR/.git" ]; then
+        print_status "Mise à jour du dépôt git (pull)..."
+        git -C "$SCRIPT_DIR" fetch origin 2>&1 | tail -5 || true
+        if ! git -C "$SCRIPT_DIR" pull --ff-only 2>&1 | tail -5; then
+            print_warning "pull --ff-only echoue, reset hard sur origin/main..."
+            if ! git -C "$SCRIPT_DIR" reset --hard origin/main 2>&1 | tail -5; then
+                git -C "$SCRIPT_DIR" reset --hard origin/master 2>&1 | tail -5 || true
+            fi
+        fi
+        print_status "Version depot: $(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo '?')"
+    fi
+
     # Vérification des mises à jour
     check_for_updates
     
@@ -608,21 +621,6 @@ main() {
     
     # Création de la sauvegarde
     create_backup
-
-    # Mise à jour du dépôt git avant copie (sinon VERSION et fichiers restent anciens)
-    if [ -d "$SCRIPT_DIR/.git" ]; then
-        print_status "Mise à jour du dépôt git (pull)..."
-        # fetch + reset --hard pour forcer la MAJ même si modifs locales / nested repo
-        git -C "$SCRIPT_DIR" fetch origin 2>&1 | tail -5 || true
-        # essayer main puis master
-        if ! git -C "$SCRIPT_DIR" pull --ff-only 2>&1 | tail -5; then
-            print_warning "pull --ff-only echoue, reset hard sur origin/main..."
-            if ! git -C "$SCRIPT_DIR" reset --hard origin/main 2>&1 | tail -5; then
-                git -C "$SCRIPT_DIR" reset --hard origin/master 2>&1 | tail -5 || true
-            fi
-        fi
-        print_status "Version depot: $(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo '?')"
-    fi
     
     # Mise à jour
     if update_files; then

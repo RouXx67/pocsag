@@ -80,15 +80,19 @@ else
   echo "Certaines fonctionnalites Telegram/Discord peuvent etre limitees"
 fi
 
-# Blacklist du module kernel DVB (sinon rtl_fm ne peut pas ouvrir le dongle)
-print_info "Blacklist du module kernel dvb_usb_rtl28xxu..."
+# Blacklist des modules kernel DVB / RTL (sinon rtl_fm ne peut pas ouvrir le dongle)
+print_info "Blacklist des modules kernel RTL-SDR..."
 if [ ! -f /etc/modprobe.d/blacklist-rtlsdr.conf ]; then
-  echo "blacklist dvb_usb_rtl28xxu" > /etc/modprobe.d/blacklist-rtlsdr.conf
-  print_ok "Module kernel blacklist dans /etc/modprobe.d/blacklist-rtlsdr.conf"
+  cat > /etc/modprobe.d/blacklist-rtlsdr.conf << 'EOF'
+blacklist dvb_usb_rtl28xxu
+blacklist rtl2832
+blacklist rtl2830
+EOF
+  print_ok "Modules kernel blacklist dans /etc/modprobe.d/blacklist-rtlsdr.conf"
 else
   print_ok "Blacklist RTL-SDR deja present"
 fi
-modprobe -r dvb_usb_rtl28xxu 2>/dev/null || true
+modprobe -r dvb_usb_rtl28xxu rtl2832 rtl2830 2>/dev/null || true
 
 echo ""
 echo "========================================="

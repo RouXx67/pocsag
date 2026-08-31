@@ -82,11 +82,6 @@
         <div class="stat-card"><div style="color:var(--sub); font-size:0.85rem;">RIC le plus actif</div><div class="stat-val" id="statTopRic" style="font-size:1.2rem; margin-top:10px;">--</div></div>
       </div>
 
-      <div class="card" style="padding: 10px;">
-        <div style="font-size:0.9rem; font-weight:bold; margin-bottom:8px; color:#00b4d8;">🗺️ Carte des interventions en direct</div>
-        <iframe id="mainMap" loading="lazy" src="https://www.openstreetmap.org/export/embed.html?bbox=7.2,48.2,7.8,48.6&layer=mapnik"></iframe>
-      </div>
-
       <div class="toolbar">
         <input type="text" id="searchInput" placeholder="🔍 Filtrer par RIC, alias, motif, commune..." onkeyup="renderMessages()">
         <button class="btn-secondary" onclick="clearLogs()">Vider l'historique</button>
@@ -432,33 +427,18 @@
       const keywords = globalConfig.keywords || [];
 
       const filtered = globalData.filter(m => String(m.ric).toLowerCase().includes(f) || (m.alias||"").toLowerCase().includes(f) || (m.message||"").toLowerCase().includes(f));
-      
-      // Mettre à jour la carte principale avec la dernière intervention géocodée
-      const latestGeo = globalData.find(m => m.lat != null && m.lon != null);
-      if (latestGeo) {
-        const bbox = `${latestGeo.lon-0.005},${latestGeo.lat-0.005},${latestGeo.lon+0.005},${latestGeo.lat+0.005}`;
-        const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${latestGeo.lat},${latestGeo.lon}`;
-        const mapEl = document.getElementById("mainMap");
-        if (mapEl && mapEl.src !== mapUrl) {
-          mapEl.src = mapUrl;
-        }
-      }
 
       if(!filtered.length) { tbody.innerHTML = "<tr><td colspan='4'>Aucun message.</td></tr>"; return; }
 
       tbody.innerHTML = filtered.map((m, idx) => {
         const isUrgent = keywords.some(kw => m.message.toLowerCase().includes(kw.toLowerCase()));
         const hasAddr = !!m.address;
-        const hasCoords = m.lat != null && m.lon != null;
         const gmapsUrl = hasAddr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.address)}` : "";
         let mapsCell = "-";
         if (hasAddr) {
-          const bbox = hasCoords ? `${m.lon-0.005},${m.lat-0.005},${m.lon+0.005},${m.lat+0.005}` : "";
-          const osmEmbed = hasCoords ? `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${m.lat},${m.lon}` : "";
           mapsCell = `
             <div style="font-size:0.85rem; font-weight:600; margin-bottom:4px;">${m.address}</div>
             <a class="maps-link" href="${gmapsUrl}" target="_blank">🗺️ Google Maps</a>
-            ${hasCoords ? `<iframe id="map-${idx}" class="mini-map" loading="lazy" src="${osmEmbed}"></iframe>` : `<div style="color:var(--sub); font-size:0.7rem; margin-top:4px;">📍 géocodage en cours...</div>`}
           `;
         }
         return `<tr>

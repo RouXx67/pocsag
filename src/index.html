@@ -42,10 +42,10 @@
     <header>
       <h1><span class="status-dot"></span> 📡 POCSAG Monitor Pro</h1>
       <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('monitoring')">📡 Direct</button>
-        <button class="tab-btn" onclick="switchTab('aliases')">🏷️ Alias RIC</button>
-        <button class="tab-btn" onclick="switchTab('blacklist')">🚫 Blacklist</button>
-        <button class="tab-btn" onclick="switchTab('settings')">⚙️ Settings</button>
+        <button class="tab-btn active" onclick="switchTab('monitoring', event)">📡 Direct</button>
+        <button class="tab-btn" onclick="switchTab('aliases', event)">🏷️ Alias RIC</button>
+        <button class="tab-btn" onclick="switchTab('blacklist', event)">🚫 Blacklist</button>
+        <button class="tab-btn" onclick="switchTab('settings', event)">⚙️ Settings</button>
       </div>
     </header>
 
@@ -129,10 +129,11 @@
   <script>
     let globalData = [], globalConfig = { discord_webhook: "", telegram_bot_token: "", telegram_chat_id: "", notify_empty: true, aliases: {}, blacklist: [], keywords: [] };
 
-    function switchTab(id) {
+    function switchTab(id, evt) {
       document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
       document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
-      event.target.classList.add("active");
+      const target = (evt && evt.target) ? evt.target : (window.event && window.event.target);
+      if (target) target.classList.add("active");
       document.getElementById("tab-" + id).classList.add("active");
     }
 
@@ -219,9 +220,10 @@
 
     async function fetchMessages() {
       try {
-        const res = await fetch("data.json?t=" + Date.now());
+        const res = await fetch("/data.json?t=" + Date.now());
         if(res.ok) {
-          globalData = await res.json();
+          const text = await res.text();
+          globalData = text ? JSON.parse(text) : [];
           updateStats();
           renderMessages();
         }

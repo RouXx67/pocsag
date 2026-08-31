@@ -92,7 +92,14 @@ install_dependencies() {
     fi
     
     print_status "Installation des dépendances Python..."
-    pip3 install requests
+    # Debian 13 / Python 3.13 : environnement externement géré -> preferer apt, fallback pip --break-system-packages
+    if ! apt install -y python3-requests 2>/dev/null; then
+        pip3 install --break-system-packages requests 2>/dev/null || pip3 install requests 2>/dev/null || true
+    fi
+    # Vérification
+    if ! python3 -c "import requests" 2>/dev/null; then
+        print_warning "Module requests non disponible - notifications Telegram/Discord limitees"
+    fi
 }
 
 # Vérification du matériel RTL-SDR

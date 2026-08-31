@@ -175,17 +175,20 @@ check_logs() {
 check_performance() {
     print_status "Vérification des performances..."
     
-    # Utilisation CPU
-    cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)
-    if (( $(echo "$cpu_usage < 80" | bc -l) )); then
+    # Utilisation CPU (sans bc, fallback awk)
+    cpu_usage=$(top -bn1 2>/dev/null | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)
+    cpu_usage=${cpu_usage:-0}
+    # Comparaison sans bc : awk gère les floats
+    if awk "BEGIN {exit !($cpu_usage < 80)}"; then
         print_ok "Utilisation CPU acceptable ($cpu_usage%)"
     else
         print_warning "Utilisation CPU élevée ($cpu_usage%)"
     fi
     
     # Utilisation mémoire
-    mem_usage=$(free | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}')
-    if (( $(echo "$mem_usage < 80" | bc -l) )); then
+    mem_usage=$(free 2>/dev/null | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}')
+    mem_usage=${mem_usage:-0}
+    if awk "BEGIN {exit !($mem_usage < 80)}"; then
         print_ok "Utilisation mémoire acceptable ($mem_usage%)"
     else
         print_warning "Utilisation mémoire élevée ($mem_usage%)"

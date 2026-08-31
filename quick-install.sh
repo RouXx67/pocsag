@@ -5,7 +5,7 @@
 #
 
 # Téléchargement et installation automatique
-REPO_URL="https://github.com/votre-user/pocsag-monitor-pro"  # À adapter
+REPO_URL="https://github.com/RouXx67/pocsag"
 TEMP_DIR="/tmp/pocsag-install"
 
 echo "🚀 Installation rapide POCSAG Monitor Pro"

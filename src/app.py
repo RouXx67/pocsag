@@ -146,6 +146,12 @@ def send_discord(ric, func, message, is_test=False):
 
 def process_notifications(ric, func, message, is_test=False):
     cfg = get_config()
+    # Blacklist : aucune notification pour les RIC masqués
+    if str(ric) in cfg.get("blacklist", []) and not is_test:
+        return
+    # notify_empty : ignorer les trames sans texte si désactivé
+    if not message and not cfg.get("notify_empty", True) and not is_test:
+        return
     aliases = cfg.get("aliases", {})
     alias_name = aliases.get(str(ric), "")
     ric_display = f"{ric} ({alias_name})" if alias_name else str(ric)
@@ -184,9 +190,10 @@ def save_to_web(ric, func, message):
 
 class APIHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path == "/api/config":
+        if self.path == "/api/config" or self.path.startswith("/api/config?"):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
+            self.send_header("Cache-Control", "no-cache")
             self.end_headers()
             self.wfile.write(json.dumps(get_config()).encode())
         else:
@@ -195,20 +202,33 @@ class APIHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length)
-        if self.path == "/api/config":
-            save_config(json.loads(body))
+        # Normaliser le path (sans query string)
+        path = self.path.split("?")[0]
+        if path == "/api/config":
+            try:
+                cfg = json.loads(body) if body else {}
+            except Exception:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error":"invalid json"}')
+                return
+            save_config(cfg)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(b'{"status":"ok"}')
-        elif self.path == "/api/clear-logs":
-            with open(LOG_FILE, "w") as f:
-                json.dump([], f)
+        elif path == "/api/clear-logs":
+            try:
+                with open(LOG_FILE, "w") as f:
+                    json.dump([], f)
+            except Exception as e:
+                print(f"Erreur clear-logs: {e}")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(b'{"status":"ok"}')
-        elif self.path == "/api/test-discord":
+        elif path == "/api/test-discord":
             process_notifications("1234567", "1", "SAP VERT A DOMICILE VSAV001.COND BENFELD 7C RUE PETIT REMPART", True)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")

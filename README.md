@@ -93,7 +93,7 @@ Si vous préférez l'installation étape par étape, consultez `INSTALLATION.md`
   "time": "14:30:15",
   "date": "31/08/2026", 
   "ric": "1234567",
-  "alias": "VSAV Schirmeck",
+  "alias": "VSAV ",
   "func": "1",
   "message": "SAP VERT A DOMICILE VSAV001.COND ******",
   "address": " ***** **** **** ******** "

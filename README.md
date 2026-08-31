@@ -1,4 +1,4 @@
-# POCSAG Monitor Pro
+﻿# POCSAG Monitor Pro
 
 Application autonome de décodage et supervision en temps réel des trames POCSAG utilisées par les services d'urgence (Sapeurs-Pompiers, SAMU, etc.).
 
@@ -47,33 +47,36 @@ Application autonome de décodage et supervision en temps réel des trames POCSA
 - **Blacklist** : Masquage des RIC de test
 - **Paramètres** : Webhooks Discord/Telegram, mots-clés
 
-## Installation
+## Installation Rapide ⚡
 
-### Prérequis
+### Installation automatique (recommandée)
 ```bash
-# Dépendances système
-sudo apt update
-sudo apt install rtl-sdr multimon-ng python3 python3-pip nginx
+# Télécharger le projet
+git clone https://github.com/votre-user/pocsag-monitor-pro.git
+cd pocsag-monitor-pro
 
-# Dépendances Python
-pip3 install requests
+# Installation complète en une commande
+sudo bash setup.sh
 ```
 
-### Configuration
-1. Copier `src/app.py` vers `/opt/pocsag/app.py`
-2. Copier `src/index.html` vers `/var/www/html/`
-3. Copier `config/config.json.example` vers `/opt/pocsag/`
-4. Configurer Nginx avec `config/nginx.conf`
-5. Installer le service systemd : `config/pocsag.service`
+### Installation manuelle
+Si vous préférez l'installation étape par étape, consultez `INSTALLATION.md`
 
-### Démarrage
-```bash
-# Activer et démarrer les services
-sudo systemctl enable pocsag
-sudo systemctl start pocsag
-sudo systemctl enable nginx
-sudo systemctl start nginx
-```
+## Scripts Disponibles
+
+### 🚀 Installation et Configuration
+- **`setup.sh`** - Installation complète avec menu interactif
+- **`setup-auto-update.sh`** - Configuration des mises à jour automatiques
+- **`uninstall.sh`** - Désinstallation propre du système
+
+### 🔄 Mise à Jour
+- **`update.sh`** - Système de mise à jour intelligent avec sauvegarde
+- **`auto-update.sh`** - Mises à jour automatiques (pour cron)
+- **`deploy.sh`** - Déploiement rapide (legacy)
+
+### 🔍 Maintenance et Diagnostic  
+- **`health-check.sh`** - Diagnostic complet du système
+- **`quick-install.sh`** - Installation en une ligne (à venir)
 
 ## API Endpoints
 

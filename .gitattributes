@@ -1,2 +1,32 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Git attributes for POCSAG Monitor Pro
+# See https://git-scm.com/docs/gitattributes
+
+# Disable line ending conversion entirely for this repository
+* text=auto eol=lf
+
+# Keep .gitattributes unchanged (no line ending conversion)
+.gitattributes text
+
+# Explicitly handle line endings for specific text files
+README.md text=auto eol=lf
+.gitignore text=auto eol=lf
+
+# Configuration and data files - force LF
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+
+# Keep certain files unchanged (binary-like handling, no line ending conversion)
+*.png binary
+*.jpg binary
+*.db binary
+*.sql binary
+# Archive files
+*.zip binary
+*.tar binary
+*.gz binary

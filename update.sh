@@ -612,10 +612,16 @@ main() {
     # Mise à jour du dépôt git avant copie (sinon VERSION et fichiers restent anciens)
     if [ -d "$SCRIPT_DIR/.git" ]; then
         print_status "Mise à jour du dépôt git (pull)..."
+        # fetch + reset --hard pour forcer la MAJ même si modifs locales / nested repo
+        git -C "$SCRIPT_DIR" fetch origin 2>&1 | tail -5 || true
+        # essayer main puis master
         if ! git -C "$SCRIPT_DIR" pull --ff-only 2>&1 | tail -5; then
-            print_warning "git pull --ff-only a échoué, tentative merge..."
-            git -C "$SCRIPT_DIR" pull 2>&1 | tail -5 || true
+            print_warning "pull --ff-only echoue, reset hard sur origin/main..."
+            if ! git -C "$SCRIPT_DIR" reset --hard origin/main 2>&1 | tail -5; then
+                git -C "$SCRIPT_DIR" reset --hard origin/master 2>&1 | tail -5 || true
+            fi
         fi
+        print_status "Version depot: $(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo '?')"
     fi
     
     # Mise à jour

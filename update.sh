@@ -6,6 +6,7 @@
 #
 
 set -e
+export PATH="$PATH:/usr/sbin:/sbin:/usr/local/sbin"
 
 # Couleurs
 RED='\033[0;31m'
@@ -17,8 +18,17 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # Variables globales
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BACKUP_DIR="/opt/pocsag/backups"
 CURRENT_DIR=$(pwd)
+
+nginx_bin() {
+    if command -v nginx >/dev/null 2>&1; then command -v nginx
+    elif [ -x /usr/sbin/nginx ]; then echo /usr/sbin/nginx
+    elif [ -x /sbin/nginx ]; then echo /sbin/nginx
+    else echo nginx
+    fi
+}
 FORCE_UPDATE=false
 BACKUP_ONLY=false
 CHECK_ONLY=false
@@ -190,11 +200,12 @@ EOF
 
 # Nettoyage des anciennes sauvegardes
 cleanup_old_backups() {
-    local backup_count=$(ls -1 "$BACKUP_DIR" | grep "^backup_" | wc -l)
+    local backup_count
+    backup_count=$(ls -1 "$BACKUP_DIR" 2>/dev/null | grep -c "^backup_" || echo 0)
     
-    if [ $backup_count -gt 5 ]; then
+    if [ "$backup_count" -gt 5 ]; then
         print_status "Nettoyage des anciennes sauvegardes (garde les 5 dernières)"
-        ls -1t "$BACKUP_DIR"/backup_* | tail -n +6 | xargs rm -rf
+        ls -1t "$BACKUP_DIR"/backup_* 2>/dev/null | tail -n +6 | xargs -r rm -rf 2>/dev/null || true
         print_success "Anciennes sauvegardes supprimées"
     fi
 }
@@ -212,32 +223,32 @@ get_current_version() {
 check_for_updates() {
     print_status "Vérification des mises à jour disponibles..."
     
-    # Vérification des fichiers locaux
+    # Vérification des fichiers locaux (chemins absolus via SCRIPT_DIR)
     local files_changed=false
     
-    if [ -f "src/app.py" ]; then
-        if ! cmp -s "src/app.py" "/opt/pocsag/app.py"; then
+    if [ -f "$SCRIPT_DIR/src/app.py" ]; then
+        if ! cmp -s "$SCRIPT_DIR/src/app.py" "/opt/pocsag/app.py" 2>/dev/null; then
             print_update "app.py a des modifications"
             files_changed=true
         fi
     fi
     
-    if [ -f "src/index.html" ]; then
-        if ! cmp -s "src/index.html" "/var/www/html/index.html"; then
+    if [ -f "$SCRIPT_DIR/src/index.html" ]; then
+        if ! cmp -s "$SCRIPT_DIR/src/index.html" "/var/www/html/index.html" 2>/dev/null; then
             print_update "index.html a des modifications"
             files_changed=true
         fi
     fi
     
-    if [ -f "config/pocsag.service" ]; then
-        if ! cmp -s "config/pocsag.service" "/etc/systemd/system/pocsag.service"; then
+    if [ -f "$SCRIPT_DIR/config/pocsag.service" ]; then
+        if ! cmp -s "$SCRIPT_DIR/config/pocsag.service" "/etc/systemd/system/pocsag.service" 2>/dev/null; then
             print_update "pocsag.service a des modifications"
             files_changed=true
         fi
     fi
     
-    if [ -f "config/nginx.conf" ]; then
-        if ! cmp -s "config/nginx.conf" "/etc/nginx/sites-available/pocsag-monitor"; then
+    if [ -f "$SCRIPT_DIR/config/nginx.conf" ]; then
+        if ! cmp -s "$SCRIPT_DIR/config/nginx.conf" "/etc/nginx/sites-available/pocsag-monitor" 2>/dev/null; then
             print_update "nginx.conf a des modifications"
             files_changed=true
         fi
@@ -278,12 +289,12 @@ check_for_updates() {
 show_changes_summary() {
     echo -e "\n${BLUE}═══ Résumé des changements ═══${NC}"
     
-    # Comparaison des fichiers
+    # Comparaison des fichiers (préfixés par SCRIPT_DIR)
     files_to_check=(
-        "src/app.py:/opt/pocsag/app.py:Backend Python"
-        "src/index.html:/var/www/html/index.html:Interface Web"
-        "config/pocsag.service:/etc/systemd/system/pocsag.service:Service systemd"
-        "config/nginx.conf:/etc/nginx/sites-available/pocsag-monitor:Configuration Nginx"
+        "$SCRIPT_DIR/src/app.py:/opt/pocsag/app.py:Backend Python"
+        "$SCRIPT_DIR/src/index.html:/var/www/html/index.html:Interface Web"
+        "$SCRIPT_DIR/config/pocsag.service:/etc/systemd/system/pocsag.service:Service systemd"
+        "$SCRIPT_DIR/config/nginx.conf:/etc/nginx/sites-available/pocsag-monitor:Configuration Nginx"
     )
     
     for file_info in "${files_to_check[@]}"; do
@@ -315,27 +326,27 @@ update_files() {
     systemctl stop pocsag 2>/dev/null || true
     
     # Mise à jour app.py
-    if [ -f "src/app.py" ]; then
-        cp "src/app.py" "/opt/pocsag/app.py"
-        chown root:root /opt/pocsag/app.py
+    if [ -f "$SCRIPT_DIR/src/app.py" ]; then
+        cp "$SCRIPT_DIR/src/app.py" "/opt/pocsag/app.py"
+        chown root:root /opt/pocsag/app.py 2>/dev/null || true
         chmod 644 /opt/pocsag/app.py
         print_success "app.py mis à jour"
     fi
     
     # Mise à jour index.html
-    if [ -f "src/index.html" ]; then
-        cp "src/index.html" "/var/www/html/index.html"
-        chown www-data:www-data /var/www/html/index.html
-        chmod 644 /var/www/html/index.html
+    if [ -f "$SCRIPT_DIR/src/index.html" ]; then
+        cp "$SCRIPT_DIR/src/index.html" "/var/www/html/index.html"
+        chown www-data:www-data /var/www/html/index.html 2>/dev/null || true
+        chmod 644 /var/www/html/index.html 2>/dev/null || true
         print_success "index.html mis à jour"
     fi
     
     # Mise à jour du service systemd
     local service_updated=false
-    if [ -f "config/pocsag.service" ]; then
-        if ! cmp -s "config/pocsag.service" "/etc/systemd/system/pocsag.service"; then
-            cp "config/pocsag.service" "/etc/systemd/system/"
-            systemctl daemon-reload
+    if [ -f "$SCRIPT_DIR/config/pocsag.service" ]; then
+        if ! cmp -s "$SCRIPT_DIR/config/pocsag.service" "/etc/systemd/system/pocsag.service" 2>/dev/null; then
+            cp "$SCRIPT_DIR/config/pocsag.service" "/etc/systemd/system/"
+            systemctl daemon-reload 2>/dev/null || true
             service_updated=true
             print_success "Service systemd mis à jour"
         fi
@@ -343,26 +354,29 @@ update_files() {
     
     # Mise à jour Nginx
     local nginx_updated=false
-    if [ -f "config/nginx.conf" ]; then
-        if ! cmp -s "config/nginx.conf" "/etc/nginx/sites-available/pocsag-monitor"; then
-            cp "config/nginx.conf" "/etc/nginx/sites-available/pocsag-monitor"
+    if [ -f "$SCRIPT_DIR/config/nginx.conf" ]; then
+        if ! cmp -s "$SCRIPT_DIR/config/nginx.conf" "/etc/nginx/sites-available/pocsag-monitor" 2>/dev/null; then
+            cp "$SCRIPT_DIR/config/nginx.conf" "/etc/nginx/sites-available/pocsag-monitor"
+            mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
             
-            # Test de la configuration
-            if nginx -t; then
+            # Test de la configuration (robuste hors PATH)
+            NGINX_BIN="$(nginx_bin)"
+            if $NGINX_BIN -t 2>&1; then
                 nginx_updated=true
                 print_success "Configuration Nginx mise à jour"
             else
                 print_error "Erreur dans la nouvelle configuration Nginx"
+                $NGINX_BIN -t 2>&1 || true
                 return 1
             fi
         fi
     fi
     
     # Mise à jour de la version
-    if [ -f "VERSION" ]; then
-        cp "VERSION" "/opt/pocsag/"
+    if [ -f "$SCRIPT_DIR/VERSION" ]; then
+        cp "$SCRIPT_DIR/VERSION" "/opt/pocsag/" 2>/dev/null || true
     else
-        echo "$(date +%Y.%m.%d-%H%M)" > "/opt/pocsag/VERSION"
+        echo "$(date +%Y.%m.%d-%H%M)" > "/opt/pocsag/VERSION" 2>/dev/null || true
     fi
     
     # Redémarrage des services
@@ -433,9 +447,10 @@ rollback_to_backup() {
     done
     
     # Rechargement systemd et redémarrage
-    systemctl daemon-reload
-    nginx -t && systemctl reload nginx
-    systemctl start pocsag
+    systemctl daemon-reload 2>/dev/null || true
+    NGINX_BIN="$(nginx_bin)"
+    $NGINX_BIN -t 2>/dev/null && systemctl reload nginx 2>/dev/null || true
+    systemctl start pocsag 2>/dev/null || true
     
     print_success "Rollback terminé avec succès !"
     

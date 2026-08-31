@@ -452,7 +452,7 @@
         const hasAddr = !!m.address;
         const hasCoords = m.lat != null && m.lon != null;
         const gmapsUrl = hasAddr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.address)}` : "";
-        const osmUrl = hasAddr ? (hasCoords ? `https://www.openstreetmap.org/?mlat=${m.lat}&mlon=${m.lon}#map=16/${m.lat}/${m.lon}` : `https://www.openstreetmap.org/search?query=${encodeURIComponent(m.address)}`) : "";
+        const osmUrl = hasAddr ? (hasCoords ? `https://www.openstreetmap.org/?mlat=${m.lat}&mlon=${m.lon}&zoom=17` : `https://www.openstreetmap.org/search?query=${encodeURIComponent(m.address)}`) : "";
         let mapsCell = "-";
         if (hasAddr) {
           const bbox = hasCoords ? `${m.lon-0.005},${m.lat-0.005},${m.lon+0.005},${m.lat+0.005}` : "";

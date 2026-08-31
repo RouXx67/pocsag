@@ -188,23 +188,29 @@ def extract_address(message):
     if not message:
         return ""
     
-    # 1. Découpage après l'engin et son rôle (ex: VSAV001.COND BENFELD 7C RUE PETIT REMPART ou THANN 12 AVENUE...)
-    match = re.search(r'\b[A-Z0-9]+(?:\.[A-Z0-9]+)?\s+(.*)', message)
-    addr_raw = match.group(1).strip() if match else message.strip()
+    cleaned = message
+    # Supprimer les préfixes d'intervention courants
+    for prefix in ["AVP", "SAP", "FEU", "SECOURS", "INTERVENTION", "VL CONTRE ARBRE", "PL CONTRE ARBRE", "DEGAGEMENT", "RECONNAISSANCE"]:
+        if cleaned.upper().startswith(prefix):
+            cleaned = cleaned[len(prefix):].strip()
+
+    # Supprimer l'engin et son rôle (ex: VSAV001.COND ou FPT001)
+    cleaned = re.sub(r'\b[A-Z]{3,}\d{3}(?:\.[A-Z0-9]+)?\s*', '', cleaned)
+    cleaned = cleaned.strip()
 
     # Normalisation si la ville est en premier suivie de la rue (ex: THANN 12 AVENUE DE LA REPUBLIQUE)
-    m_city_first = re.match(r'^([A-ZÀ-ÖØ-Þ\s\-]{3,})\s+(\d+[\w\s\-\.]+\s+(?:RUE|AVENUE|BOULEVARD|IMPASSE|CHEMIN|ROUTE|PLACE|ALLÉE|ALLEE|QUAI|CRS|CR|RES|RESIDENCE)\b.*)$', addr_raw, re.IGNORECASE)
+    m_city_first = re.match(r'^([A-ZÀ-ÖØ-Þ\s\-]{3,})\s+(\d+[\w\s\-\.]+\s+(?:RUE|AVENUE|BOULEVARD|IMPASSE|CHEMIN|ROUTE|PLACE|ALLÉE|ALLEE|QUAI|CRS|CR|RES|RESIDENCE)\b.*)$', cleaned, re.IGNORECASE)
     if m_city_first:
         city = m_city_first.group(1).strip()
         street = m_city_first.group(2).strip()
         return f"{street}, {city}"
 
-    # 2. Fallback pour découpage par slashs (ex: AVP / BENFELD / RUE PETIT REMPART)
-    parts = message.split("/")
+    # Fallback par slashs si présents
+    parts = cleaned.split("/")
     if len(parts) >= 2:
         return " ".join([p.strip() for p in parts[1:]]).strip()
 
-    return addr_raw
+    return cleaned
 
 def geocode_address(address):
     """Géocodage de l'adresse via la BAN (Base Adresse Nationale) pour obtenir lat/lon"""

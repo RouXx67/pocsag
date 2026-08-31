@@ -83,8 +83,8 @@
       </div>
 
       <div class="card" style="padding: 10px;">
-        <div style="font-size:0.9rem; font-weight:bold; margin-bottom:8px; color:#00b4d8;">🗺️ Carte des interventions en direct (Rouge = Urgent, Bleu = Normal)</div>
-        <iframe id="mainMap" loading="lazy" src="https://www.openstreetmap.org/export/embed.html?bbox=7.2,48.2,7.8,48.6&layer=mapnik"></iframe>
+        <div style="font-size:0.9rem; font-weight:bold; margin-bottom:8px; color:#00b4d8;">🗺️ Carte des interventions en direct (Google Maps)</div>
+        <iframe id="mainMap" loading="lazy" src="https://www.google.com/maps/embed/v1/place?key=&q=Benfeld,France"></iframe>
       </div>
 
       <div class="toolbar">
@@ -436,9 +436,8 @@
       // Mettre à jour la carte principale avec la dernière intervention géocodée
       const latestGeo = globalData.find(m => m.lat != null && m.lon != null);
       if (latestGeo) {
-        const isUrgent = keywords.some(kw => latestGeo.message.toLowerCase().includes(kw.toLowerCase()));
-        const bbox = `${latestGeo.lon-0.01},${latestGeo.lat-0.01},${latestGeo.lon+0.01},${latestGeo.lat+0.01}`;
-        const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${latestGeo.lat},${latestGeo.lon}`;
+        const query = encodeURIComponent(latestGeo.address + ", France");
+        const mapUrl = `https://maps.google.com/maps?q=${latestGeo.lat},${latestGeo.lon}&z=15&output=embed`;
         const mapEl = document.getElementById("mainMap");
         if (mapEl && mapEl.src !== mapUrl) {
           mapEl.src = mapUrl;
@@ -454,12 +453,11 @@
         const gmapsUrl = hasAddr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.address)}` : "";
         let mapsCell = "-";
         if (hasAddr) {
-          const bbox = hasCoords ? `${m.lon-0.005},${m.lat-0.005},${m.lon+0.005},${m.lat+0.005}` : "";
-          const osmEmbed = hasCoords ? `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${m.lat},${m.lon}` : "";
+          const gmapEmbed = hasCoords ? `https://maps.google.com/maps?q=${m.lat},${m.lon}&z=16&output=embed` : "";
           mapsCell = `
             <div style="font-size:0.85rem; font-weight:600; margin-bottom:4px;">${m.address}</div>
             <a class="maps-link" href="${gmapsUrl}" target="_blank">🗺️ Google Maps</a>
-            ${hasCoords ? `<iframe id="map-${idx}" class="mini-map" loading="lazy" src="${osmEmbed}"></iframe>` : `<div style="color:var(--sub); font-size:0.7rem; margin-top:4px;">📍 géocodage en cours...</div>`}
+            ${hasCoords ? `<iframe id="map-${idx}" class="mini-map" loading="lazy" src="${gmapEmbed}"></iframe>` : `<div style="color:var(--sub); font-size:0.7rem; margin-top:4px;">📍 géocodage en cours...</div>`}
           `;
         }
         return `<tr>

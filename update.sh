@@ -240,12 +240,12 @@ check_for_updates() {
         fi
     fi
     
-    if [ -f "$SCRIPT_DIR/config/pocsag.service" ]; then
-        if ! cmp -s "$SCRIPT_DIR/config/pocsag.service" "/etc/systemd/system/pocsag.service" 2>/dev/null; then
-            print_update "pocsag.service a des modifications"
-            files_changed=true
-        fi
-    fi
+    # if [ -f "$SCRIPT_DIR/config/pocsag.service" ]; then
+    #     if ! cmp -s "$SCRIPT_DIR/config/pocsag.service" "/etc/systemd/system/pocsag.service" 2>/dev/null; then
+    #         print_update "pocsag.service a des modifications"
+    #         files_changed=true
+    #     fi
+    # fi
     
     if [ -f "$SCRIPT_DIR/config/nginx.conf" ]; then
         if ! cmp -s "$SCRIPT_DIR/config/nginx.conf" "/etc/nginx/sites-available/pocsag-monitor" 2>/dev/null; then
@@ -293,7 +293,6 @@ show_changes_summary() {
     files_to_check=(
         "$SCRIPT_DIR/src/app.py:/opt/pocsag/app.py:Backend Python"
         "$SCRIPT_DIR/src/index.html:/var/www/html/index.html:Interface Web"
-        "$SCRIPT_DIR/config/pocsag.service:/etc/systemd/system/pocsag.service:Service systemd"
         "$SCRIPT_DIR/config/nginx.conf:/etc/nginx/sites-available/pocsag-monitor:Configuration Nginx"
     )
     
@@ -343,16 +342,9 @@ update_files() {
         print_success "index.html et PWA mis à jour"
     fi
     
-    # Mise à jour du service systemd
+    # Le service systemd /etc/systemd/system/pocsag.service est géré dynamiquement par l'application (fréquences, paramètres)
+    # On ne l'écrase donc jamais lors d'une mise à jour pour préserver la configuration utilisateur.
     local service_updated=false
-    if [ -f "$SCRIPT_DIR/config/pocsag.service" ]; then
-        if ! cmp -s "$SCRIPT_DIR/config/pocsag.service" "/etc/systemd/system/pocsag.service" 2>/dev/null; then
-            cp "$SCRIPT_DIR/config/pocsag.service" "/etc/systemd/system/"
-            systemctl daemon-reload 2>/dev/null || true
-            service_updated=true
-            print_success "Service systemd mis à jour"
-        fi
-    fi
     
     # Mise à jour Nginx
     local nginx_updated=false

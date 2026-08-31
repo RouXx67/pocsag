@@ -436,8 +436,7 @@
       // Mettre à jour la carte principale avec la dernière intervention géocodée
       const latestGeo = globalData.find(m => m.lat != null && m.lon != null);
       if (latestGeo) {
-        const query = encodeURIComponent(latestGeo.address + ", France");
-        const mapUrl = `https://maps.google.com/maps?q=${latestGeo.lat},${latestGeo.lon}&z=15&output=embed`;
+        const mapUrl = `https://maps.google.com/maps?q=${latestGeo.lat},${latestGeo.lon}&z=16&output=embed`;
         const mapEl = document.getElementById("mainMap");
         if (mapEl && mapEl.src !== mapUrl) {
           mapEl.src = mapUrl;
@@ -453,7 +452,7 @@
         const gmapsUrl = hasAddr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.address)}` : "";
         let mapsCell = "-";
         if (hasAddr) {
-          const gmapEmbed = hasCoords ? `https://maps.google.com/maps?q=${m.lat},${m.lon}&z=16&output=embed` : "";
+          const gmapEmbed = hasCoords ? `https://maps.google.com/maps?q=${m.lat},${m.lon}&z=17&output=embed` : "";
           mapsCell = `
             <div style="font-size:0.85rem; font-weight:600; margin-bottom:4px;">${m.address}</div>
             <a class="maps-link" href="${gmapsUrl}" target="_blank">🗺️ Google Maps</a>

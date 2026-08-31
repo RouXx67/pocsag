@@ -10,6 +10,7 @@
     .container { max-width: 1200px; margin: 0 auto; }
     header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 15px; margin-bottom: 20px; }
     h1 { color: #00b4d8; font-size: 1.4rem; margin: 0; display: flex; align-items: center; gap: 10px; }
+    .version-badge { background: #27272a; color: #a8a8b3; border: 1px solid #3f3f46; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-family: monospace; }
     .status-dot { width: 10px; height: 10px; background: #22c55e; border-radius: 50%; display: inline-block; box-shadow: 0 0 8px #22c55e; }
     .tabs { display: flex; gap: 8px; }
     .tab-btn { background: transparent; border: 1px solid var(--border); color: var(--sub); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; }
@@ -43,7 +44,7 @@
 <body>
   <div class="container">
     <header>
-      <h1><span class="status-dot"></span> 📡 POCSAG Monitor</h1>
+      <h1><span class="status-dot"></span> 📡 POCSAG Monitor <span id="appVersion" class="version-badge">v…</span></h1>
       <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('monitoring', event)">📡 Direct</button>
         <button class="tab-btn" onclick="switchTab('aliases', event)">🏷️ Alias RIC</button>
@@ -366,9 +367,21 @@
       el.style.display = el.style.display === "none" ? "block" : "none";
     }
 
+    async function loadVersion() {
+      try {
+        const res = await fetch("/api/version");
+        const t = await res.text();
+        if (!res.ok || t.trim().startsWith("<")) throw new Error();
+        const j = JSON.parse(t);
+        document.getElementById("appVersion").textContent = "v" + (j.version || "?");
+      } catch(e){
+        document.getElementById("appVersion").textContent = "v?";
+      }
+    }
+
     function showStatus(id, msg, type) { const el = document.getElementById(id); el.textContent = msg; el.className = "status-msg " + type; }
 
-    loadConfig(); setInterval(fetchMessages, 3000); fetchMessages();
+    loadVersion(); loadConfig(); setInterval(fetchMessages, 3000); fetchMessages();
   </script>
 </body>
 </html>

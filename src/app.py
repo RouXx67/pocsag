@@ -9,7 +9,19 @@ from datetime import datetime
 CONFIG_FILE = "/opt/pocsag/config.json"
 LOG_FILE = "/var/www/html/data.json"
 SERVICE_FILE = "/etc/systemd/system/pocsag.service"
+VERSION_FILE = "/opt/pocsag/VERSION"
 DEFAULT_FREQUENCIES = ["85.955M", "173512.5k"]
+
+def get_version():
+    try:
+        with open(VERSION_FILE, "r") as f:
+            return f.read().strip()
+    except Exception:
+        try:
+            with open("VERSION", "r") as f:
+                return f.read().strip()
+        except Exception:
+            return "1.0.0"
 
 DEFAULT_CONFIG = {
     "discord_webhook": "",
@@ -287,6 +299,12 @@ class APIHandler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
             self.wfile.write(json.dumps(get_config()).encode())
+        elif self.path == "/api/version" or self.path.startswith("/api/version?"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            self.wfile.write(json.dumps({"version": get_version()}).encode())
         else:
             self.send_error(404)
 

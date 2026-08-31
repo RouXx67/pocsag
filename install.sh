@@ -34,7 +34,21 @@ apt update -y 2>&1 | tail -1
 
 # Installation dépendances système
 print_info "DEPS" "Installation des dépendances système..."
-apt install -y rtl-sdr multimon-ng python3 python3-pip nginx git curl wget 2>&1 | tail -3
+apt install -y rtl-sdr multimon-ng python3 python3-pip git curl wget 2>&1 | tail -3
+
+# Installation nginx si manquant
+print_info "NGINXINST" "Vérification de Nginx..."
+if ! command -v nginx &>/dev/null; then
+  print_info "NGINXINST1" "Installation de Nginx..."
+  apt install -y nginx 2>&1 | tail -3
+fi
+
+# Vérification nginx
+if command -v nginx &>/dev/null; then
+  print_ok "Nginx disponible"
+else
+  print_warning "Nginx non disponible - interface web limitée"
+fi
 
 # Installation module Python requests
 print_info "PYTHON" "Installation du module Python requests..."

@@ -45,6 +45,11 @@
     .service-grid { display:grid; grid-template-columns:1fr 1fr; gap:15px; }
     select { background:#000; border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px; }
     textarea { width:100%; background:#000; color:#4ade80; border:1px solid var(--border); border-radius:8px; padding:15px; font-family:monospace; font-size:0.8rem; resize:vertical; }
+
+    /* Modal Login Admin */
+    .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+    .modal-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 25px; width: 320px; text-align: center; }
+    .modal-card input { width: 100%; margin: 15px 0; box-sizing: border-box; }
     #mainMap { width: 100%; height: 350px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 20px; background: #121214; }
 
     /* Menu Burger Responsive PWA */
@@ -121,8 +126,19 @@
     </div>
 
     <div id="tab-settings" class="tab-content">
-      <div class="card">
-        <h2>📻 Fréquences RTL-SDR (max 3)</h2>
+      <div id="authPrompt" class="card" style="text-align:center; padding: 40px 20px;">
+        <h2>🔒 Accès protégé</h2>
+        <p style="color:var(--sub); margin-bottom: 20px;">Veuillez entrer le mot de passe administrateur pour accéder aux paramètres.</p>
+        <div style="max-width: 300px; margin: 0 auto; display: flex; gap: 8px;">
+          <input type="password" id="adminPasswordInput" placeholder="Mot de passe (défaut: admin)">
+          <button onclick="verifyAdminPassword()">Valider</button>
+        </div>
+        <div id="authError" class="status-msg error" style="margin-top: 10px;"></div>
+      </div>
+
+      <div id="settingsContent" style="display:none;">
+        <div class="card">
+          <h2>📻 Fréquences RTL-SDR (max 3)</h2>
         <p style="color:var(--sub); font-size:0.85rem; margin-top:0;">Modifier <code>rtl_fm -f ...</code> du service <code>systemd/pocsag.service</code>. Laisser vide pour désactiver une entrée.</p>
         <div id="freqList" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;"></div>
         <button class="btn-secondary" onclick="addFreqField()">+ Ajouter une fréquence</button>
@@ -264,6 +280,33 @@
       const navTabs = document.getElementById("navTabs");
       if (navTabs) navTabs.classList.remove("open");
     }
+
+    async function verifyAdminPassword() {
+      const pwd = document.getElementById("adminPasswordInput").value;
+      try {
+        const res = await fetch("/api/auth/verify?pwd=" + encodeURIComponent(pwd));
+        const j = await res.json();
+        if (j.success) {
+          sessionStorage.setItem("pocsag_auth", "true");
+          document.getElementById("authPrompt").style.display = "none";
+          document.getElementById("settingsContent").style.display = "block";
+        } else {
+          document.getElementById("authError").textContent = "Mot de passe incorrect";
+        }
+      } catch(e) {
+        document.getElementById("authError").textContent = "Erreur de connexion";
+      }
+    }
+
+    // Vérifier l'authentification au chargement si l'utilisateur va sur settings
+    document.addEventListener("DOMContentLoaded", () => {
+      if (sessionStorage.getItem("pocsag_auth") === "true") {
+        const prompt = document.getElementById("authPrompt");
+        const content = document.getElementById("settingsContent");
+        if (prompt) prompt.style.display = "none";
+        if (content) content.style.display = "block";
+      }
+    });
 
     function toggleMenu() {
       const navTabs = document.getElementById("navTabs");

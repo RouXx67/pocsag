@@ -84,7 +84,8 @@ DEFAULT_CONFIG = {
     "aliases": {},
     "blacklist": [],
     "keywords": ["AVP", "FEU", "DESINCARCERATION", "RENFORT", "URGENT"],
-    "frequencies": DEFAULT_FREQUENCIES.copy()
+    "frequencies": DEFAULT_FREQUENCIES.copy(),
+    "admin_password": "admin"
 }
 
 def get_config():
@@ -382,6 +383,18 @@ class APIHandler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
             self.wfile.write(json.dumps(cfg).encode())
+        elif self.path == "/api/auth/verify":
+            # Endpoint de vérification du mot de passe admin
+            pwd = self.path.split("?pwd=")[1] if "?pwd=" in self.path else ""
+            import urllib.parse
+            pwd = urllib.parse.unquote(pwd)
+            cfg = get_config()
+            expected = cfg.get("admin_password", "admin")
+            ok = (pwd == expected)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"success": ok}).encode())
         elif self.path == "/api/logs" or self.path.startswith("/api/logs?"):
             try:
                 import subprocess

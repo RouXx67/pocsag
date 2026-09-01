@@ -68,10 +68,7 @@
       </div>
       <div class="tabs" id="navTabs">
         <button class="tab-btn active" onclick="switchTab('monitoring', event)">📡 Direct</button>
-        <button class="tab-btn" onclick="switchTab('aliases', event)">🏷️ Alias RIC</button>
-        <button class="tab-btn" onclick="switchTab('blacklist', event)">🚫 Blacklist</button>
         <button class="tab-btn" onclick="switchTab('settings', event)">⚙️ Settings</button>
-        <button class="tab-btn" onclick="switchTab('console', event)">📋 Console</button>
       </div>
     </header>
 
@@ -136,6 +133,28 @@
         </div>
         <div style="color:var(--sub); font-size:0.75rem; margin-top:6px;">Exemples: <code>85.955M</code>, <code>173512.5k</code>, <code>173.5125M</code> — redémarrage requis pour prise en compte.</div>
       </div>
+
+      <div class="card">
+        <h2>🏷️ Associer un Alias RIC</h2>
+        <div class="toolbar">
+          <input type="text" id="aliasRicInput" placeholder="Numéro RIC (ex: 0123456)">
+          <input type="text" id="aliasNameInput" placeholder="Nom d'engin (ex: VSAV Schirmeck)">
+          <button onclick="saveAlias()">Enregistrer</button>
+        </div>
+        <h3 style="font-size:1rem; color:var(--sub); margin-top:15px;">Alias Enregistrés</h3>
+        <table><thead><tr><th>RIC</th><th>Alias</th><th style="width:100px;">Action</th></tr></thead><tbody id="aliasListTable"></tbody></table>
+      </div>
+
+      <div class="card">
+        <h2>🚫 Ignorer des RIC (Blacklist)</h2>
+        <div class="toolbar">
+          <input type="text" id="blacklistRicInput" placeholder="Numéro RIC de test">
+          <button class="btn-danger" onclick="addBlacklist()">Masquer ce RIC</button>
+        </div>
+        <h3 style="font-size:1rem; color:var(--sub); margin-top:15px;">RIC Masqués</h3>
+        <table><thead><tr><th>RIC</th><th style="width:100px;">Action</th></tr></thead><tbody id="blacklistTable"></tbody></table>
+      </div>
+
       <div class="card">
         <h2>⚙️ Paramètres RTL-SDR / Service</h2>
         <div class="service-grid">
@@ -178,6 +197,7 @@
           <span id="serviceConfigStatus" class="status-msg"></span>
         </div>
       </div>
+
       <div class="card">
         <h2>⚙️ Configuration Discord & Telegram</h2>
         <div style="margin-bottom:15px;">
@@ -205,6 +225,7 @@
         <button class="btn-secondary" onclick="testDiscord()">Envoyer un test</button>
         <div id="settingsStatus" class="status-msg"></div>
       </div>
+
       <div class="card">
         <h2>📄 Fichier service brut</h2>
         <p style="color:var(--sub); font-size:0.85rem; margin-top:0;">Édition avancée de <code>/etc/systemd/system/pocsag.service</code></p>
@@ -215,11 +236,9 @@
           <span id="serviceRawStatus" class="status-msg"></span>
         </div>
       </div>
-    </div>
 
-    <div id="tab-console" class="tab-content">
       <div class="card">
-        <h2>📋 Logs du service POCSAG</h2>
+        <h2>📋 Logs du service POCSAG (Console)</h2>
         <div style="display:flex; gap:12px; margin-bottom:10px; align-items:center;">
           <button class="btn-secondary" onclick="fetchLogs()">🔄 Rafraîchir</button>
           <label style="display:flex; align-items:center; gap:5px; color:var(--sub); font-size:0.85rem;">

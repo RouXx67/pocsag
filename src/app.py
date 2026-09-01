@@ -383,7 +383,7 @@ class APIHandler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
             self.wfile.write(json.dumps(cfg).encode())
-        elif self.path == "/api/auth/verify":
+        elif self.path == "/api/auth/verify" or self.path.startswith("/api/auth/verify?"):
             # Endpoint de vérification du mot de passe admin
             pwd = self.path.split("?pwd=")[1] if "?pwd=" in self.path else ""
             import urllib.parse

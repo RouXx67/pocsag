@@ -395,6 +395,26 @@ class APIHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps({"success": ok}).encode())
+        elif self.path == "/api/update/check" or self.path.startswith("/api/update/check?"):
+            try:
+                import subprocess
+                # Vérifier les commits distants git si possible
+                subprocess.run(["git", "-C", "/opt/pocsag", "fetch", "origin", "main"], capture_output=True, timeout=3)
+                local_rev = subprocess.run(["git", "-C", "/opt/pocsag", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=2).stdout.strip()
+                remote_rev = subprocess.run(["git", "-C", "/opt/pocsag", "rev-parse", "origin/main"], capture_output=True, text=True, timeout=2).stdout.strip()
+                if not remote_rev:
+                    remote_rev = subprocess.run(["git", "-C", "/opt/pocsag", "rev-parse", "origin/master"], capture_output=True, text=True, timeout=2).stdout.strip()
+                
+                update_available = (local_rev and remote_rev and local_rev != remote_rev)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"update_available": update_available, "local": local_rev[:7], "remote": remote_rev[:7]}).encode())
+            except Exception as e:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"update_available": False, "error": str(e)}).encode())
         elif self.path == "/api/logs" or self.path.startswith("/api/logs?"):
             try:
                 import subprocess
@@ -493,6 +513,35 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": str(e)}).encode())
+            return
+        elif path == "/api/update/run":
+            try:
+                import subprocess
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"status":"updating"}')
+                try:
+                    self.wfile.flush()
+                except Exception:
+                    pass
+                def _delayed_update():
+                    import time as _t
+                    _t.sleep(1)
+                    try:
+                        # Exécuter update.sh --force dans le répertoire du repo
+                        subprocess.run(["bash", "/opt/pocsag/update.sh", "--force"], timeout=30)
+                    except Exception as ex:
+                        print(f"update echoue: {ex}")
+                threading.Thread(target=_delayed_update, daemon=True).start()
+            except Exception as e:
+                try:
+                    self.send_response(500)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": str(e)}).encode())
+                except Exception:
+                    pass
             return
         elif path == "/api/service/config":
             try:

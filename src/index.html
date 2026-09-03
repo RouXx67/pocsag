@@ -28,7 +28,7 @@
     
     header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 15px; margin-bottom: 25px; background: var(--card); padding: 15px 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
     h1 { color: #38bdf8; font-size: 1.3rem; margin: 0; display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.02em; }
-    .version-badge { background: #27272a; color: var(--sub); border: 1px solid #3f3f46; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-family: monospace; }
+    .update-flag { background: #991b1b; color: #fecaca; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 0 10px var(--danger-glow); animation: pulseUrgent 1.5s infinite; cursor: pointer; }
     .status-dot { width: 10px; height: 10px; background: var(--success); border-radius: 50%; display: inline-block; box-shadow: 0 0 10px var(--success); }
     
     .tabs { display: flex; gap: 8px; }
@@ -114,7 +114,7 @@
   <div class="container">
     <header>
       <div class="header-top">
-        <h1><span class="status-dot"></span> 📡 POCSAG Monitor <span id="appVersion" class="version-badge">v…</span></h1>
+        <h1><span class="status-dot"></span> 📡 POCSAG Monitor <span id="appVersion" class="version-badge">v…</span> <span id="updateFlag" style="display:none;" class="update-flag" onclick="switchTab('settings')">🚀 MAJ dispo</span></h1>
         <button class="menu-toggle" onclick="toggleMenu()">☰</button>
       </div>
       <div class="tabs" id="navTabs">
@@ -216,8 +216,15 @@
       </div>
 
       <div id="settingsContent" style="display:none;">
-        <div class="card">
-          <h2>📻 Fréquences RTL-SDR (max 3)</h2>
+      <div class="card" id="updateCard" style="display:none; border-color: var(--danger);">
+        <h2 style="color: var(--danger);">🚀 Mise à jour disponible</h2>
+        <p style="color: var(--sub); font-size: 0.9rem;">Une nouvelle version du code est disponible sur le dépôt Git.</p>
+        <button class="btn-danger" onclick="runUpdate()">Mettre à jour maintenant</button>
+        <span id="updateStatus" class="status-msg"></span>
+      </div>
+
+      <div class="card">
+        <h2>📻 Fréquences RTL-SDR (max 3)</h2>
         <p style="color:var(--sub); font-size:0.85rem; margin-top:0;">Modifier <code>rtl_fm -f ...</code> du service <code>systemd/pocsag.service</code>. Laisser vide pour désactiver une entrée.</p>
         <div id="freqList" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;"></div>
         <button class="btn-secondary" onclick="addFreqField()">+ Ajouter une fréquence</button>
@@ -760,6 +767,37 @@
       }
     }
 
+    async function checkUpdateStatus() {
+      try {
+        const res = await fetch("/api/update/check");
+        if (res.ok) {
+          const j = await res.json();
+          if (j.update_available) {
+            const flag = document.getElementById("updateFlag");
+            if (flag) flag.style.display = "inline-flex";
+            const card = document.getElementById("updateCard");
+            if (card) card.style.display = "block";
+          }
+        }
+      } catch(e) {}
+    }
+
+    async function runUpdate() {
+      if (!confirm("Lancer la mise à jour automatique du système ?")) return;
+      showStatus("updateStatus", "Mise à jour en cours (patientez ~10s)...", "");
+      try {
+        const res = await fetch("/api/update/run", { method: "POST" });
+        if (res.ok) {
+          showStatus("updateStatus", "✅ Mise à jour lancée ! Rechargement dans 10 secondes...", "success");
+          setTimeout(() => { location.reload(); }, 10000);
+        } else {
+          showStatus("updateStatus", "❌ Échec du lancement de la mise à jour", "error");
+        }
+      } catch(e) {
+        showStatus("updateStatus", "❌ " + e.message, "error");
+      }
+    }
+
     async function loadVersion() {
       try {
         const res = await fetch("/api/version");
@@ -808,7 +846,7 @@
       navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW error:', err));
     }
 
-    loadVersion(); loadConfig(); setInterval(fetchMessages, 3000); fetchMessages();
+    loadVersion(); loadConfig(); checkUpdateStatus(); setInterval(fetchMessages, 3000); fetchMessages();
     fetchLogs(); toggleAutoRefreshLogs();
     setTimeout(initMap, 500);
   </script>

@@ -83,19 +83,25 @@ check_dependencies() {
         "rtl_test:RTL-SDR"
         "multimon-ng:Décodeur POCSAG"
         "python3:Python 3"
-        "nginx:Serveur web"
     )
     
     for dep_info in "${deps[@]}"; do
-        cmd=$(echo $dep_info | cut -d':' -f1)
-        desc=$(echo $dep_info | cut -d':' -f2)
+        bin=$(echo $dep_info | cut -d':' -f1)
+        name=$(echo $dep_info | cut -d':' -f2)
         
-        if command -v $cmd &> /dev/null; then
-            print_ok "$desc installé"
+        if command -v "$bin" > /dev/null 2>&1; then
+            print_ok "$name installé"
         else
-            print_error "$desc manquant"
+            print_error "$name manquant"
         fi
     done
+
+    # Vérification nginx via helper ou command -v
+    if command -v nginx > /dev/null 2>&1 || [ -x /usr/sbin/nginx ]; then
+        print_ok "Serveur web installé"
+    else
+        print_error "Serveur web manquant"
+    fi
 }
 
 check_rtl_sdr() {
@@ -176,19 +182,19 @@ check_performance() {
     print_status "Vérification des performances..."
     
     # Utilisation CPU (sans bc, fallback awk)
-    cpu_usage=$(top -bn1 2>/dev/null | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)
+    cpu_usage=$(top -bn1 2>/dev/null | grep "Cpu(s)" | awk '{print $2}' | tr ',' '.')
     cpu_usage=${cpu_usage:-0}
-    # Comparaison sans bc : awk gère les floats
-    if awk "BEGIN {exit !($cpu_usage < 80)}"; then
+    # Comparaison sans bc : awk gère les floats en remplaçant la virgule par un point
+    if awk -v cpu="$cpu_usage" 'BEGIN {exit !(cpu < 80)}'; then
         print_ok "Utilisation CPU acceptable ($cpu_usage%)"
     else
         print_warning "Utilisation CPU élevée ($cpu_usage%)"
     fi
     
     # Utilisation mémoire
-    mem_usage=$(free 2>/dev/null | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}')
+    mem_usage=$(free 2>/dev/null | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}' | tr ',' '.')
     mem_usage=${mem_usage:-0}
-    if awk "BEGIN {exit !($mem_usage < 80)}"; then
+    if awk -v mem="$mem_usage" 'BEGIN {exit !(mem < 80)}'; then
         print_ok "Utilisation mémoire acceptable ($mem_usage%)"
     else
         print_warning "Utilisation mémoire élevée ($mem_usage%)"

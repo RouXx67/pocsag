@@ -329,7 +329,14 @@
       </div>
 
       <div class="card">
-        <h2>📄 Fichier service brut</h2>
+        <h2>🔒 Sécurité & Mot de passe Admin</h2>
+        <div style="margin-bottom:15px;">
+          <label style="font-weight:bold; display:block; margin-bottom:5px;">Nouveau mot de passe administrateur :</label>
+          <input type="password" id="adminPwdInput" placeholder="Laisser vide pour ne pas changer">
+        </div>
+        <button onclick="saveAdminPassword()">Changer le mot de passe</button>
+        <span id="pwdStatus" class="status-msg"></span>
+      </div>
         <p style="color:var(--sub); font-size:0.85rem; margin-top:0;">Édition avancée de <code>/etc/systemd/system/pocsag.service</code></p>
         <textarea id="serviceRawInput" rows="12"></textarea>
         <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
@@ -483,7 +490,22 @@
       showStatus("settingsStatus", res.ok ? "Paramètres enregistrés !" : "Erreur", res.ok ? "success" : "error");
     }
 
-    async function testDiscord() {
+    async function saveAdminPassword() {
+      const p = document.getElementById("adminPwdInput").value.trim();
+      if (!p) { showStatus("pwdStatus", "Le mot de passe ne peut pas être vide", "error"); return; }
+      globalConfig.admin_password = p;
+      try {
+        const res = await fetch("/api/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(globalConfig) });
+        if (res.ok) {
+          showStatus("pwdStatus", "✅ Mot de passe modifié avec succès", "success");
+          document.getElementById("adminPwdInput").value = "";
+        } else {
+          showStatus("pwdStatus", "❌ Erreur lors de l'enregistrement", "error");
+        }
+      } catch(e) {
+        showStatus("pwdStatus", "❌ " + e.message, "error");
+      }
+    }
       showStatus("settingsStatus", "Envoi...", "");
       try {
         const res = await fetch("/api/test-discord", { method: "POST" });

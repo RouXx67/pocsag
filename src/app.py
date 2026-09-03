@@ -397,19 +397,18 @@ class APIHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"success": ok}).encode())
         elif self.path == "/api/update/check" or self.path.startswith("/api/update/check?"):
             try:
-                import subprocess
-                # Vérifier les commits distants git si possible
-                subprocess.run(["git", "-C", "/opt/pocsag", "fetch", "origin", "main"], capture_output=True, timeout=3)
-                local_rev = subprocess.run(["git", "-C", "/opt/pocsag", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=2).stdout.strip()
-                remote_rev = subprocess.run(["git", "-C", "/opt/pocsag", "rev-parse", "origin/main"], capture_output=True, text=True, timeout=2).stdout.strip()
-                if not remote_rev:
-                    remote_rev = subprocess.run(["git", "-C", "/opt/pocsag", "rev-parse", "origin/master"], capture_output=True, text=True, timeout=2).stdout.strip()
+                local_ver = get_version()
+                r = requests.get("https://raw.githubusercontent.com/RouXx67/pocsag/main/VERSION", timeout=3)
+                if r.status_code != 200:
+                    r = requests.get("https://raw.githubusercontent.com/RouXx67/pocsag/master/VERSION", timeout=3)
                 
-                update_available = (local_rev and remote_rev and local_rev != remote_rev)
+                remote_ver = r.text.strip() if r.status_code == 200 else local_ver
+                update_available = (local_ver != remote_ver and len(remote_ver) > 0)
+                
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
-                self.wfile.write(json.dumps({"update_available": update_available, "local": local_rev[:7], "remote": remote_rev[:7]}).encode())
+                self.wfile.write(json.dumps({"update_available": update_available, "local": local_ver, "remote": remote_ver}).encode())
             except Exception as e:
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")

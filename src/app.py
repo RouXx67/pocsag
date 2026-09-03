@@ -100,6 +100,12 @@ def get_config():
         return DEFAULT_CONFIG.copy()
 
 def save_config(cfg):
+    # Préserver le bloc service existant si absent de la requête client
+    if "service" not in cfg:
+        old_cfg = get_config()
+        if "service" in old_cfg:
+            cfg["service"] = old_cfg["service"]
+
     # Normaliser frequencies avant sauvegarde
     if "frequencies" in cfg:
         cfg["frequencies"] = normalize_frequencies(cfg["frequencies"])

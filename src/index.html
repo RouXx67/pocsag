@@ -506,6 +506,7 @@
         showStatus("pwdStatus", "❌ " + e.message, "error");
       }
     }
+    async function testDiscord() {
       showStatus("settingsStatus", "Envoi...", "");
       try {
         const res = await fetch("/api/test-discord", { method: "POST" });

@@ -105,7 +105,7 @@ def save_config(cfg):
         cfg["frequencies"] = normalize_frequencies(cfg["frequencies"])
     with open(CONFIG_FILE, "w") as f:
         json.dump(cfg, f, indent=2)
-    # Mettre à jour le service systemd si frequencies a changé
+    # Mettre à jour le service systemd (fréquences ET paramètres RTL-SDR)
     try:
         freqs = cfg.get("frequencies", DEFAULT_FREQUENCIES)
         update_pocsag_service(freqs)

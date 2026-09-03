@@ -224,16 +224,39 @@
       </div>
 
       <div class="card">
-        <h2>📻 Fréquences RTL-SDR (max 3)</h2>
-        <p style="color:var(--sub); font-size:0.85rem; margin-top:0;">Modifier <code>rtl_fm -f ...</code> du service <code>systemd/pocsag.service</code>. Laisser vide pour désactiver une entrée.</p>
-        <div id="freqList" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;"></div>
-        <button class="btn-secondary" onclick="addFreqField()">+ Ajouter une fréquence</button>
-        <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
-          <button onclick="saveFrequencies()">Enregistrer fréquences</button>
+        <h2>📻 Fréquences RTL-SDR & Paramètres Clé SDR</h2>
+        <p style="color:var(--sub); font-size:0.85rem; margin-top:0;">Gérez vos fréquences d'écoute (max 3) et les paramètres radio <code>rtl_fm</code> du service systemd.</p>
+        
+        <div style="margin-bottom: 15px;">
+          <label style="font-weight:bold; display:block; margin-bottom:5px;">Fréquences (ex: 85.955M, 173512.5k) :</label>
+          <div id="freqList" style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;"></div>
+          <button class="btn-secondary" onclick="addFreqField()">+ Ajouter une fréquence</button>
+        </div>
+
+        <div class="service-grid" style="margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px;">
+          <div>
+            <label style="font-weight:bold; display:block; margin-bottom:5px;">Squelch (-l) :</label>
+            <input type="number" id="squelchInput" value="50" min="0" max="100" style="width:100%;">
+          </div>
+          <div>
+            <label style="font-weight:bold; display:block; margin-bottom:5px;">Gain (-g) :</label>
+            <input type="text" id="gainInput" value="19.2" style="width:100%;">
+          </div>
+          <div>
+            <label style="font-weight:bold; display:block; margin-bottom:5px;">Sample Rate (-s) :</label>
+            <input type="text" id="sampleRateInput" value="176400" style="width:100%;">
+          </div>
+          <div>
+            <label style="font-weight:bold; display:block; margin-bottom:5px;">Output Rate (-r) :</label>
+            <input type="text" id="outputRateInput" value="22050" style="width:100%;">
+          </div>
+        </div>
+
+        <div style="margin-top:15px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <button onclick="saveAllSdrSettings()">💾 Enregistrer Fréquences & Clé SDR</button>
           <button class="btn-secondary" onclick="restartService()">🔄 Redémarrer service</button>
           <span id="freqStatus" class="status-msg"></span>
         </div>
-        <div style="color:var(--sub); font-size:0.75rem; margin-top:6px;">Exemples: <code>85.955M</code>, <code>173512.5k</code>, <code>173.5125M</code> — redémarrage requis pour prise en compte.</div>
       </div>
 
       <div class="card">
@@ -257,48 +280,7 @@
         <table><thead><tr><th>RIC</th><th style="width:100px;">Action</th></tr></thead><tbody id="blacklistTable"></tbody></table>
       </div>
 
-      <div class="card">
-        <h2>⚙️ Paramètres RTL-SDR / Service</h2>
-        <div class="service-grid">
-          <div>
-            <label style="font-weight:bold; display:block; margin-bottom:5px;">Squelch (-l) :</label>
-            <input type="number" id="squelchInput" value="50" min="0" max="100" style="width:100%;">
-          </div>
-          <div>
-            <label style="font-weight:bold; display:block; margin-bottom:5px;">Gain (-g) :</label>
-            <input type="text" id="gainInput" value="19.2" style="width:100%;">
-          </div>
-          <div>
-            <label style="font-weight:bold; display:block; margin-bottom:5px;">Sample rate (-s) :</label>
-            <input type="text" id="sampleRateInput" value="176400" style="width:100%;">
-          </div>
-          <div>
-            <label style="font-weight:bold; display:block; margin-bottom:5px;">Output rate (-r) :</label>
-            <input type="text" id="outputRateInput" value="22050" style="width:100%;">
-          </div>
-          <div>
-            <label style="font-weight:bold; display:block; margin-bottom:5px;">Restart :</label>
-            <select id="restartModeInput" style="width:100%;">
-              <option value="always">always</option>
-              <option value="on-failure">on-failure</option>
-              <option value="no">no</option>
-            </select>
-          </div>
-          <div>
-            <label style="font-weight:bold; display:block; margin-bottom:5px;">RestartSec :</label>
-            <input type="number" id="restartSecInput" value="5" min="1" style="width:100%;">
-          </div>
-        </div>
-        <div style="margin-top:15px;">
-          <label style="font-weight:bold; display:block; margin-bottom:5px;">Description :</label>
-          <input type="text" id="serviceDescInput" value="Decoder POCSAG RTL-SDR vers Web, Telegram et Discord" style="width:100%;">
-        </div>
-        <div style="margin-top:15px; display:flex; gap:8px; align-items:center;">
-          <button onclick="saveServiceConfig()">Enregistrer paramètres service</button>
-          <button class="btn-secondary" onclick="restartService()">🔄 Redémarrer</button>
-          <span id="serviceConfigStatus" class="status-msg"></span>
-        </div>
-      </div>
+      <!-- Paramètres RTL-SDR fusionnés dans la carte Fréquences ci-dessus -->
 
       <div class="card">
         <h2>⚙️ Configuration Discord & Telegram</h2>
@@ -428,18 +410,36 @@
       if (globalConfig.frequencies.length === 0) globalConfig.frequencies = [""];
       renderFreqInputs();
     }
-    async function saveFrequencies() {
+    async function saveAllSdrSettings() {
       const inputs = document.querySelectorAll(".freq-input");
       const freqs = Array.from(inputs).map(el => el.value.trim()).filter(v => v);
       if (freqs.length === 0) { showStatus("freqStatus","Au moins une fréquence requise","error"); return; }
       if (freqs.length > 3) { showStatus("freqStatus","Max 3 fréquences","error"); return; }
-      // validation simple
+      
       const re = /^\d+(\.\d+)?\s*[kKmM]?(?:Hz)?$/;
       for (const f of freqs) { if (!re.test(f.replace(/\s+/g,""))) { showStatus("freqStatus","Format invalide: "+f,"error"); return; } }
+      
       globalConfig.frequencies = freqs;
-      const res = await fetch("/api/config", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(globalConfig)});
-      if (res.ok) { showStatus("freqStatus","Fréquences enregistrées - redémarrage requis","success"); }
-      else { showStatus("freqStatus","Erreur enregistrement","error"); }
+      globalConfig.service = {
+        squelch: parseInt(document.getElementById("squelchInput").value) || 50,
+        gain: document.getElementById("gainInput").value.trim() || "19.2",
+        sample_rate: document.getElementById("sampleRateInput").value.trim() || "176400",
+        output_rate: document.getElementById("outputRateInput").value.trim() || "22050",
+        restart: "always",
+        restart_sec: 5,
+        description: "Decoder POCSAG RTL-SDR vers Web, Telegram et Discord"
+      };
+
+      try {
+        const res = await fetch("/api/config", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(globalConfig) });
+        if (res.ok) {
+          showStatus("freqStatus", "✅ Fréquences et paramètres SDR enregistrés !", "success");
+        } else {
+          showStatus("freqStatus", "❌ Erreur lors de l'enregistrement", "error");
+        }
+      } catch(e) {
+        showStatus("freqStatus", "❌ " + e.message, "error");
+      }
     }
     async function restartService() {
       showStatus("freqStatus","Redémarrage...", "");

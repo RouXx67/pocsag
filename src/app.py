@@ -535,13 +535,30 @@ class APIHandler(BaseHTTPRequestHandler):
                     import os
                     _t.sleep(1)
                     try:
-                        upd_script = "/opt/pocsag/update.sh"
-                        if not os.path.exists(upd_script):
-                            if os.path.exists("/home/pocsag/pocsag/update.sh"):
-                                upd_script = "/home/pocsag/pocsag/update.sh"
-                            else:
-                                upd_script = "update.sh"
-                        subprocess.run(["bash", upd_script, "--force"], timeout=30)
+                        upd_script = None
+                        for candidate in [
+                            "/opt/pocsag/update.sh",
+                            "/home/pocsag/pocsag/update.sh",
+                            os.path.join(os.path.dirname(os.path.abspath(__file__)), "update.sh"),
+                            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "update.sh")
+                        ]:
+                            if os.path.exists(candidate):
+                                upd_script = candidate
+                                break
+                        
+                        if not upd_script:
+                            try:
+                                res_find = subprocess.run(["find", "/", "-name", "update.sh", "-type", "f"], capture_output=True, text=True, timeout=5)
+                                found = res_find.stdout.strip().split("\n")
+                                if found and found[0]:
+                                    upd_script = found[0]
+                            except Exception:
+                                pass
+
+                        if upd_script and os.path.exists(upd_script):
+                            subprocess.run(["bash", upd_script, "--force"], timeout=60)
+                        else:
+                            print("Script update.sh introuvable sur le système")
                     except Exception as ex:
                         print(f"update echoue: {ex}")
                 threading.Thread(target=_delayed_update, daemon=True).start()

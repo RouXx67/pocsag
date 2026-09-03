@@ -526,10 +526,16 @@ class APIHandler(BaseHTTPRequestHandler):
                     pass
                 def _delayed_update():
                     import time as _t
+                    import os
                     _t.sleep(1)
                     try:
-                        # Exécuter update.sh --force dans le répertoire du repo
-                        subprocess.run(["bash", "/opt/pocsag/update.sh", "--force"], timeout=30)
+                        upd_script = "/opt/pocsag/update.sh"
+                        if not os.path.exists(upd_script):
+                            if os.path.exists("/home/pocsag/pocsag/update.sh"):
+                                upd_script = "/home/pocsag/pocsag/update.sh"
+                            else:
+                                upd_script = "update.sh"
+                        subprocess.run(["bash", upd_script, "--force"], timeout=30)
                     except Exception as ex:
                         print(f"update echoue: {ex}")
                 threading.Thread(target=_delayed_update, daemon=True).start()

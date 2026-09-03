@@ -132,7 +132,14 @@ else
   print_err "Fichier src/index.html introuvable"
 fi
 
-# Config par défaut
+# Copie des scripts utilitaires
+if [ -f "$SCRIPT_DIR/update.sh" ]; then
+  cp "$SCRIPT_DIR/update.sh" /opt/pocsag/update.sh
+  chmod +x /opt/pocsag/update.sh
+fi
+if [ -f "$SCRIPT_DIR/VERSION" ]; then
+  cp "$SCRIPT_DIR/VERSION" /opt/pocsag/VERSION
+fi
 if [ -f "$SCRIPT_DIR/config/config.json.example" ]; then
   if [ ! -f "/opt/pocsag/config.json" ]; then
     cp "$SCRIPT_DIR/config/config.json.example" /opt/pocsag/config.json

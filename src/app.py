@@ -30,7 +30,7 @@ def parse_service_file():
         "after": "network.target nginx.service",
         "service_type": "simple",
         "user": "root",
-        "squelch": 50,
+        "squelch": 0,
         "gain": "19.2",
         "sample_rate": "176400",
         "output_rate": "22050",
@@ -146,7 +146,7 @@ def update_pocsag_service(frequencies):
     freqs = normalize_frequencies(frequencies)
     cfg = get_config()
     svc = cfg.get("service", {})
-    squelch = svc.get("squelch", 50)
+    squelch = svc.get("squelch", 0)
     gain = svc.get("gain", "19.2")
     sample_rate = svc.get("sample_rate", "176400")
     output_rate = svc.get("output_rate", "22050")
@@ -570,7 +570,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 config = get_config()
                 freqs = config.get("frequencies", DEFAULT_FREQUENCIES)
                 freq_args = " ".join(f"-f {f}" for f in freqs)
-                squelch = cfg.get("squelch", 50)
+                squelch = cfg.get("squelch", 0)
                 gain = cfg.get("gain", "19.2")
                 sample_rate = cfg.get("sample_rate", "176400")
                 output_rate = cfg.get("output_rate", "22050")

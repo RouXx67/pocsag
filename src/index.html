@@ -236,7 +236,7 @@
         <div class="service-grid" style="margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px;">
           <div>
             <label style="font-weight:bold; display:block; margin-bottom:5px;">Squelch (-l) :</label>
-            <input type="number" id="squelchInput" value="50" min="0" max="100" style="width:100%;">
+            <input type="number" id="squelchInput" value="0" min="0" max="100" style="width:100%;">
           </div>
           <div>
             <label style="font-weight:bold; display:block; margin-bottom:5px;">Gain (-g) :</label>
@@ -412,9 +412,10 @@
       const re = /^\d+(\.\d+)?\s*[kKmM]?(?:Hz)?$/;
       for (const f of freqs) { if (!re.test(f.replace(/\s+/g,""))) { showStatus("freqStatus","Format invalide: "+f,"error"); return; } }
       
+      const rawSquelch = parseInt(document.getElementById("squelchInput").value);
       globalConfig.frequencies = freqs;
       globalConfig.service = {
-        squelch: parseInt(document.getElementById("squelchInput").value) || 50,
+        squelch: !isNaN(rawSquelch) ? rawSquelch : 0,
         gain: document.getElementById("gainInput").value.trim() || "19.2",
         sample_rate: document.getElementById("sampleRateInput").value.trim() || "176400",
         output_rate: document.getElementById("outputRateInput").value.trim() || "22050",
@@ -719,7 +720,7 @@
         const text = await res.text();
         if (!res.ok || text.trim().startsWith("<")) throw new Error();
         const cfg = JSON.parse(text);
-        document.getElementById("squelchInput").value = cfg.squelch ?? 50;
+        document.getElementById("squelchInput").value = cfg.squelch ?? 0;
         document.getElementById("gainInput").value = cfg.gain ?? "19.2";
         document.getElementById("sampleRateInput").value = cfg.sample_rate ?? "176400";
         document.getElementById("outputRateInput").value = cfg.output_rate ?? "22050";

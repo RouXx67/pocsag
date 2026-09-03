@@ -51,7 +51,8 @@
     /* Carte Leaflet */
     .map-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 15px; margin-bottom: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
     .map-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 0.95rem; font-weight: 700; color: #38bdf8; }
-    #generalMap { width: 100%; height: 380px; border-radius: 8px; border: 1px solid var(--border); z-index: 1; }
+    #generalMap { width: 100%; height: 380px; border-radius: 8px; border: 1px solid var(--border); z-index: 1; background: #121216; }
+    .leaflet-layer, .leaflet-control-zoom, .leaflet-control-attribution { filter: brightness(0.9) invert(1) contrast(1.1) hue-rotate(200deg); }
 
     /* Toolbar & Filtres rapides */
     .toolbar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
@@ -579,8 +580,8 @@
       if (leafletMap) return;
       try {
         leafletMap = L.map('generalMap', { zoomControl: true }).setView([48.4, 7.5], 9);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-          attribution: '&copy; CARTO',
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors',
           maxZoom: 19
         }).addTo(leafletMap);
         markersLayer = L.layerGroup().addTo(leafletMap);

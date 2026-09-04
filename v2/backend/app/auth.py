@@ -1,21 +1,35 @@
 from __future__ import annotations
 
+import hashlib
+import os
 from datetime import datetime, timedelta, timezone
 
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+ALGORITHM = "pbkdf2_sha256"
+ITERATIONS = 600000
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    salt = os.urandom(16).hex()
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), ITERATIONS)
+    return f"{ALGORITHM}:{ITERATIONS}:{salt}:{dk.hex()}"
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    try:
+        parts = hashed.split(":")
+        if parts[0] != ALGORITHM:
+            return False
+        iterations = int(parts[1])
+        salt = parts[2]
+        expected = parts[3]
+        dk = hashlib.pbkdf2_hmac("sha256", plain.encode(), salt.encode(), iterations)
+        return dk.hex() == expected
+    except (IndexError, ValueError):
+        return False
 
 
 def create_token(password_hash: str) -> str:

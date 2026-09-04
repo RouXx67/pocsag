@@ -85,6 +85,7 @@ DEFAULT_CONFIG = {
     "blacklist": [],
     "keywords": ["AVP", "FEU", "DESINCARCERATION", "RENFORT", "URGENT"],
     "frequencies": DEFAULT_FREQUENCIES.copy(),
+    "scan_interval": 30,
     "admin_password": "admin"
 }
 
@@ -141,24 +142,18 @@ def normalize_frequencies(freqs):
             break
     return cleaned if cleaned else DEFAULT_FREQUENCIES.copy()
 
-def update_pocsag_service(frequencies):
-    """Réécrit ExecStart dans /etc/systemd/system/pocsag.service avec les fréquences données."""
-    freqs = normalize_frequencies(frequencies)
+def update_pocsag_service(frequencies=None):
+    """Garantit que /etc/systemd/system/pocsag.service utilise l'orchestrateur Python direct."""
     cfg = get_config()
     svc = cfg.get("service", {})
-    squelch = svc.get("squelch", 0)
-    gain = svc.get("gain", "19.2")
-    sample_rate = svc.get("sample_rate", "176400")
-    output_rate = svc.get("output_rate", "22050")
     restart = svc.get("restart", "always")
     restart_sec = svc.get("restart_sec", 5)
-    freq_args = " ".join(f"-f {f}" for f in freqs)
-    exec_start = f'/bin/bash -c "rtl_fm {freq_args} -M fm -s {sample_rate} -r {output_rate} -E offset -l {squelch} -g {gain} | multimon-ng -t raw -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -f alpha - | python3 /opt/pocsag/app.py"'
-    # Template exact demandé par l'utilisateur (sans toucher autre que ExecStart)
     description = svc.get("description", "Decoder POCSAG RTL-SDR vers Web, Telegram et Discord")
     after = svc.get("after", "network.target nginx.service")
     service_type = svc.get("service_type", "simple")
     user = svc.get("user", "root")
+    python_bin = sys.executable or "/usr/bin/python3"
+    exec_start = f"{python_bin} /opt/pocsag/app.py"
     content = f"""[Unit]
 Description={description}
 After={after}
@@ -173,7 +168,6 @@ RestartSec={restart_sec}
 [Install]
 WantedBy=multi-user.target
 """
-    # Éviter réécriture inutile
     try:
         with open(SERVICE_FILE, "r") as f:
             existing = f.read()
@@ -181,14 +175,13 @@ WantedBy=multi-user.target
             return True
     except Exception:
         pass
-    with open(SERVICE_FILE, "w") as f:
-        f.write(content)
-    # Rechargement systemd (non bloquant)
     try:
+        with open(SERVICE_FILE, "w") as f:
+            f.write(content)
         import subprocess
         subprocess.run(["systemctl", "daemon-reload"], timeout=5)
     except Exception as e:
-        print(f"daemon-reload echoue: {e}")
+        print(f"daemon-reload: {e}")
     return True
 
 def extract_address(message):
@@ -512,7 +505,11 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
-                self.wfile.write(json.dumps({"active": active, "frequencies": freqs}).encode())
+                self.wfile.write(json.dumps({
+                    "active": active,
+                    "frequencies": freqs,
+                    "current_freq": CURRENT_SCAN_FREQ
+                }).encode())
             except Exception as e:
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json")
@@ -636,29 +633,134 @@ WantedBy=multi-user.target
 threading.Thread(target=lambda: HTTPServer(("127.0.0.1", 8080), APIHandler).serve_forever(), daemon=True).start()
 
 regex = re.compile(r"POCSAG\d+:\s+Address:\s+(\d+)\s+Function:\s+(\d+)(?:\s+Alpha:\s+(.*))?")
-# Boucle résiliente : garde le serveur HTTP vivant même si stdin se ferme (rtl_fm crash)
-import time
-while True:
+
+def handle_pocsag_line(line):
+    if not line:
+        return
+    match = regex.search(line)
+    if match:
+        ric, func, text = match.groups()
+        text = text.strip() if text else ""
+        try:
+            process_notifications(ric, func, text)
+        except Exception as e:
+            print(f"Erreur notifications: {e}")
+        try:
+            save_to_web(ric, func, text)
+        except Exception as e:
+            print(f"Erreur save: {e}")
+
+# Écouteur stdin pour tests manuels (ex: echo "..." | python3 app.py)
+def stdin_listener():
     try:
-        for line in sys.stdin:
-            match = regex.search(line)
-            if match:
-                ric, func, text = match.groups()
-                text = text.strip() if text else ""
+        if sys.stdin and not sys.stdin.isatty():
+            for line in sys.stdin:
+                handle_pocsag_line(line)
+    except Exception:
+        pass
+
+threading.Thread(target=stdin_listener, daemon=True).start()
+
+CURRENT_SCAN_FREQ = None
+
+def radio_scanner_loop():
+    global CURRENT_SCAN_FREQ
+    import os
+    import signal
+    import subprocess
+    import time
+
+    while True:
+        try:
+            cfg = get_config()
+            freqs = cfg.get("frequencies", DEFAULT_FREQUENCIES)
+            if not freqs:
+                time.sleep(5)
+                continue
+
+            svc = cfg.get("service", {})
+            squelch = svc.get("squelch", 0)
+            gain = svc.get("gain", "19.2")
+            sample_rate = svc.get("sample_rate", "176400")
+            output_rate = svc.get("output_rate", "22050")
+            scan_interval = int(cfg.get("scan_interval", 30))
+            if scan_interval < 5:
+                scan_interval = 5
+
+            for freq in freqs:
+                CURRENT_SCAN_FREQ = freq
+                cmd = f"rtl_fm -f {freq} -M fm -s {sample_rate} -r {output_rate} -E offset -l {squelch} -g {gain} | multimon-ng -t raw -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -f alpha -"
+                print(f"[Radio Scanner] Écoute sur {freq} (durée: {scan_interval}s, squelch: {squelch}, gain: {gain})")
+
+                preexec = getattr(os, 'setsid', None)
                 try:
-                    process_notifications(ric, func, text)
+                    proc = subprocess.Popen(
+                        f'/bin/bash -c "{cmd}"',
+                        shell=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.DEVNULL,
+                        text=True,
+                        preexec_fn=preexec
+                    )
                 except Exception as e:
-                    print(f"Erreur notifications: {e}")
-                try:
-                    save_to_web(ric, func, text)
-                except Exception as e:
-                    print(f"Erreur save: {e}")
-        # stdin EOF (rtl_fm arrêté) -> attendre avant de laisser systemd redémarrer
-        print("Stdin fermé, attente 2s avant relecture...")
-        time.sleep(2)
-        # Si on arrive ici, le service va être redémarré par systemd ; on garde HTTP vivant
-        # Ne pas quitter immédiatement pour éviter 502 nginx -> frontend JSON error
-        time.sleep(5)
-    except Exception as e:
-        print(f"Erreur boucle principale: {e}")
-        time.sleep(2)
+                    print(f"[Radio Scanner] Erreur démarrage subprocess: {e}")
+                    time.sleep(2)
+                    continue
+
+                stop_reader = threading.Event()
+                def _read_output():
+                    try:
+                        for line in iter(proc.stdout.readline, ''):
+                            if stop_reader.is_set():
+                                break
+                            handle_pocsag_line(line)
+                    except Exception:
+                        pass
+
+                reader = threading.Thread(target=_read_output, daemon=True)
+                reader.start()
+
+                # Si 1 seule fréquence configurée : écoute continue sans interruption
+                if len(freqs) == 1:
+                    proc.wait()
+                    stop_reader.set()
+                    time.sleep(1)
+                else:
+                    # Multi-fréquences : bascule temporisée après scan_interval
+                    start_t = time.time()
+                    while time.time() - start_t < scan_interval:
+                        if proc.poll() is not None:
+                            break
+                        time.sleep(1)
+
+                    stop_reader.set()
+                    try:
+                        if hasattr(os, 'killpg') and hasattr(os, 'getpgid'):
+                            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                            proc.wait(timeout=2)
+                        else:
+                            proc.terminate()
+                            proc.wait(timeout=2)
+                    except Exception:
+                        try:
+                            if hasattr(os, 'killpg') and hasattr(os, 'getpgid'):
+                                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                            else:
+                                proc.kill()
+                        except Exception:
+                            pass
+
+                    # Pause brève pour libérer proprement le périphérique USB
+                    time.sleep(0.5)
+
+        except Exception as ex:
+            print(f"[Radio Scanner] Exception boucle: {ex}")
+            time.sleep(2)
+
+# Mettre à jour automatiquement le fichier service au démarrage si nécessaire
+try:
+    update_pocsag_service()
+except Exception:
+    pass
+
+radio_scanner_loop()

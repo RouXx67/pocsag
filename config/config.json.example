@@ -19,5 +19,6 @@
   "frequencies": [
     "85.955M",
     "173512.5k"
-  ]
+  ],
+  "scan_interval": 30
 }

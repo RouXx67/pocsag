@@ -122,7 +122,7 @@ async def run_update():
         return {"status": "error", "message": "Script update.sh introuvable"}
 
     def _run():
-        sp.run(["bash", script, "--force"], timeout=60)
+        sp.run(["bash", script, "--force"], timeout=120)
 
     import threading
     threading.Thread(target=_run, daemon=True).start()

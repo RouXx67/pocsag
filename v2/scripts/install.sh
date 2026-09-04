@@ -8,19 +8,33 @@ err() { echo -e "${RED}[ERREUR]${NC} $1"; }
 info(){ echo -e "${BLUE}[INFO]${NC} $1"; }
 warn(){ echo -e "${YELLOW}[ATTENTION]${NC} $1"; }
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+find_repo_root() {
+    local dir
+    for dir in "$(pwd)" "/home/pocsag/pocsag" "/root/pocsag" "/opt/pocsag"; do
+        if [ -d "$dir/.git" ]; then echo "$dir"; return 0; fi
+    done
+    local d="$(cd "$(dirname "$0")" && pwd)"
+    while [ "$d" != "/" ]; do
+        if [ -d "$d/.git" ]; then echo "$d"; return 0; fi
+        d="$(dirname "$d")"
+    done
+    return 1
+}
 
-if [[ $EUID -ne 0 ]]; then err "Ce script doit être exécuté en root (sudo)"; exit 1; fi
+REPO_DIR="$(find_repo_root)" || REPO_DIR="/home/pocsag/pocsag"
+
+if [[ $EUID -ne 0 ]]; then err "root requis (sudo)"; exit 1; fi
 
 echo -e "${BLUE}╔═══════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║     POCSAG Monitor v2 - Installation ${NC}"
 echo -e "${BLUE}╚═══════════════════════════════════════╝${NC}"
 
-info "Mise à jour du dépôt Git..."
-cd "$REPO_DIR"
-git fetch origin 2>&1 | tail -1 || true
-git pull --ff-only 2>&1 | tail -3 || git reset --hard origin/main 2>&1 | tail -1 || true
+if [ -d "$REPO_DIR/.git" ]; then
+    info "Mise à jour du dépôt Git..."
+    cd "$REPO_DIR"
+    git fetch origin 2>&1 | tail -1 || true
+    git pull --ff-only 2>&1 | tail -3 || git reset --hard origin/main 2>&1 | tail -1 || true
+fi
 
 info "Installation des dépendances système..."
 apt update -y 2>&1 | tail -1 || warn "apt update ignoré"
@@ -42,6 +56,7 @@ chmod 755 /opt/pocsag/v2/data
 
 info "Configuration Nginx..."
 cp /opt/pocsag/v2/config/nginx.conf /etc/nginx/sites-available/pocsag-monitor
+rm -f /etc/nginx/sites-enabled/default
 ln -sf /etc/nginx/sites-available/pocsag-monitor /etc/nginx/sites-enabled/
 if nginx -t 2>&1; then systemctl reload nginx; else warn "Test nginx échoué"; fi
 
@@ -51,7 +66,6 @@ systemctl daemon-reload
 systemctl enable pocsag
 systemctl start pocsag
 
-info "Vérification..."
 sleep 2
 if systemctl is-active --quiet pocsag; then
     ok "Service POCSAG v2 actif"

@@ -15,6 +15,7 @@ if [ ! -f "update.sh" ]; then
     systemctl stop pocsag 2>/dev/null || true
     
     echo "📁 Mise à jour des fichiers..."
+    mkdir -p /opt/pocsag /var/www/html /etc/systemd/system
     cp src/app.py /opt/pocsag/app.py
     cp src/index.html /var/www/html/
     

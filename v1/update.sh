@@ -125,19 +125,34 @@ check_root() {
 # Vérification de l'installation existante
 check_installation() {
     print_status "Vérification de l'installation existante..."
-    
+
+    local missing=false
     if [ ! -f "/opt/pocsag/app.py" ]; then
-        print_error "POCSAG Monitor n'est pas installé !"
-        print_status "Utilisez 'sudo bash setup.sh' pour l'installer"
-        exit 1
+        print_warning "Fichier /opt/pocsag/app.py manquant"
+        missing=true
     fi
-    
     if [ ! -f "/etc/systemd/system/pocsag.service" ]; then
-        print_error "Service systemd non trouvé !"
+        print_warning "Service systemd manquant"
+        missing=true
+    fi
+
+    if [ "$missing" = true ] && [ "$FORCE_UPDATE" != true ]; then
+        print_warning "Installation incomplète détectée, utilisez --force pour réparer"
+        print_status "Ou 'sudo bash setup.sh' pour une installation complète"
         exit 1
     fi
-    
-    print_success "Installation existante détectée"
+
+    if [ "$missing" = true ]; then
+        print_warning "Installation partielle — les fichiers manquants seront créés"
+    else
+        print_success "Installation existante détectée"
+    fi
+}
+
+# Création du répertoire parent pour un fichier de destination
+ensure_target_dir() {
+    local target="$1"
+    mkdir -p "$(dirname "$target")"
 }
 
 # Création du répertoire de sauvegarde
@@ -324,6 +339,11 @@ update_files() {
     print_status "Arrêt temporaire du service POCSAG..."
     systemctl stop pocsag 2>/dev/null || true
     
+    # Créer les dossiers de destination si nécessaires
+    ensure_target_dir "/opt/pocsag/app.py"
+    ensure_target_dir "/var/www/html/index.html"
+    ensure_target_dir "/etc/nginx/sites-available/pocsag-monitor"
+    
     # Mise à jour app.py
     if [ -f "$SCRIPT_DIR/src/app.py" ]; then
         cp "$SCRIPT_DIR/src/app.py" "/opt/pocsag/app.py"
@@ -367,10 +387,12 @@ update_files() {
     fi
     
     # Mise à jour de la version
+    ensure_target_dir "/opt/pocsag/VERSION"
     if [ -f "$SCRIPT_DIR/VERSION" ]; then
-        cp "$SCRIPT_DIR/VERSION" "/opt/pocsag/" 2>/dev/null || true
+        cp "$SCRIPT_DIR/VERSION" "/opt/pocsag/VERSION"
+        chmod 644 /opt/pocsag/VERSION
     else
-        echo "$(date +%Y.%m.%d-%H%M)" > "/opt/pocsag/VERSION" 2>/dev/null || true
+        echo "$(date +%Y.%m.%d-%H%M)" > "/opt/pocsag/VERSION"
     fi
     
     # Redémarrage des services
@@ -435,6 +457,7 @@ rollback_to_backup() {
     for file in "${files_to_restore[@]}"; do
         local backup_file="$backup_path$file"
         if [ -f "$backup_file" ]; then
+            ensure_target_dir "$file"
             cp "$backup_file" "$file"
             print_status "Restauré: $file"
         fi

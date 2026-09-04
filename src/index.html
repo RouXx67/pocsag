@@ -720,14 +720,15 @@
         const text = await res.text();
         if (!res.ok || text.trim().startsWith("<")) throw new Error();
         const cfg = JSON.parse(text);
-        document.getElementById("squelchInput").value = cfg.squelch ?? 0;
-        document.getElementById("gainInput").value = cfg.gain ?? "19.2";
-        document.getElementById("sampleRateInput").value = cfg.sample_rate ?? "176400";
-        document.getElementById("outputRateInput").value = cfg.output_rate ?? "22050";
-        document.getElementById("restartModeInput").value = cfg.restart ?? "always";
-        document.getElementById("restartSecInput").value = cfg.restart_sec ?? 5;
-        document.getElementById("serviceDescInput").value = cfg.description ?? "";
-        document.getElementById("serviceRawInput").value = cfg.raw ?? "";
+        const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
+        setVal("squelchInput", cfg.squelch ?? 0);
+        setVal("gainInput", cfg.gain ?? "19.2");
+        setVal("sampleRateInput", cfg.sample_rate ?? "176400");
+        setVal("outputRateInput", cfg.output_rate ?? "22050");
+        setVal("restartModeInput", cfg.restart ?? "always");
+        setVal("restartSecInput", cfg.restart_sec ?? 5);
+        setVal("serviceDescInput", cfg.description ?? "");
+        setVal("serviceRawInput", cfg.raw ?? "");
       } catch(e) { console.warn("loadServiceConfig", e); }
     }
 

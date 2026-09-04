@@ -432,10 +432,10 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(r.stdout.encode())
             except Exception as e:
-                self.send_response(500)
+                self.send_response(200)
                 self.send_header("Content-Type", "text/plain")
                 self.end_headers()
-                self.wfile.write(f"Erreur: {e}".encode())
+                self.wfile.write(f"Erreur de récupération des logs: {e}".encode())
         else:
             self.send_error(404)
 

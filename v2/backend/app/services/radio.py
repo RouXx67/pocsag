@@ -21,11 +21,14 @@ def check_dongle() -> tuple[bool, str]:
     try:
         r = subprocess.run(
             ["rtl_test", "-t", "-s", "1M"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, timeout=5,
         )
-        if r.returncode == 0 or "Found" in r.stdout:
+        out = r.stdout.decode("utf-8", errors="replace")
+        err = r.stderr.decode("utf-8", errors="replace")
+        if r.returncode == 0 or "Found" in out or "Found" in err:
             return True, "Clé RTL-SDR détectée"
-        return False, r.stderr.strip() or r.stdout.strip() or "Aucune clé détectée"
+        msg = (err or out or "Aucune clé détectée").strip()[:200]
+        return False, msg
     except FileNotFoundError:
         return False, "rtl_test introuvable (rtl-sdr non installé)"
     except subprocess.TimeoutExpired:

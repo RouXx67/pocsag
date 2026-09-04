@@ -103,7 +103,7 @@ header{flex-direction:column;align-items:flex-start;gap:12px;padding:15px}
 <div class="container">
 <header>
 <div class="header-top">
-<h1><span class="live-dot" id="liveDot"></span> 📡 POCSAG Monitor <span id="appVersion" class="version-badge">v2.1.1</span> <span id="updateFlag" style="display:none;" class="update-flag" onclick="runUpdate()">🚀 MAJ dispo</span></h1>
+<h1><span class="live-dot" id="liveDot"></span> 📡 POCSAG Monitor <span id="appVersion" class="version-badge">v2.1.2</span> <span id="updateFlag" style="display:none;" class="update-flag" onclick="runUpdate()">🚀 MAJ dispo</span></h1>
 <button class="menu-toggle" onclick="toggleMenu()">☰</button>
 </div>
 <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -216,6 +216,7 @@ async function api(path,opts={}){
 const headers={"Content-Type":"application/json",...opts.headers};
 if(TOKEN)headers["Authorization"]=`Bearer ${TOKEN}`;
 const res=await fetch(path,{...opts,headers});
+if(!res.ok && res.status===401){sessionStorage.removeItem("pocsag_token");TOKEN="";document.getElementById("appContent").style.display="none";document.getElementById("authScreen").style.display="block";throw new Error("Session expirée")}
 const text=await res.text();
 if(!text)return{};
 try{return JSON.parse(text)}catch{return text}
@@ -344,6 +345,7 @@ if(r.status==="updating"){showStatus("updateStatus","✅ Lancée ! Rechargement 
 else{showStatus("updateStatus","❌ "+r.message||"Échec","error")}
 }
 async function saveSdrSettings(){
+try{
 const body={
 frequencies:document.getElementById("freqInput").value.split(",").map(s=>s.trim()).filter(s=>s),
 scan_interval:parseInt(document.getElementById("scanIntervalInput").value)||30,
@@ -354,8 +356,10 @@ output_rate:document.getElementById("outputRateInput").value||"22050",
 };
 await api("/api/config",{method:"POST",body:JSON.stringify(body)});
 showStatus("freqStatus","✅ Enregistré","success")
+}catch(e){showStatus("freqStatus","❌ "+e.message,"error")}
 }
 async function saveNotifications(){
+try{
 const body={
 discord_webhook:document.getElementById("webhookUrl").value.trim(),
 telegram_bot_token:document.getElementById("tgToken").value.trim(),
@@ -365,6 +369,7 @@ keywords:document.getElementById("keywordsInput").value.split(",").map(s=>s.trim
 };
 await api("/api/config",{method:"POST",body:JSON.stringify(body)});
 showStatus("notifStatus","✅ Enregistré","success")
+}catch(e){showStatus("notifStatus","❌ "+e.message,"error")}
 }
 async function testDiscord(){const r=await api("/api/test-discord",{method:"POST"});showStatus("notifStatus",r.success?"✅ Test envoyé":"❌ "+r.message,r.success?"success":"error")}
 async function saveAlias(){

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,10 +16,21 @@ from app.schemas import (
 router = APIRouter(tags=["config"])
 
 
-async def _require_auth(token: str = Query(""), db: AsyncSession = Depends(get_db)):
+async def _require_auth(
+    authorization: str = Header(""),
+    token: str = Query(""),
+    db: AsyncSession = Depends(get_db),
+):
+    # Support both Authorization header and query parameter
+    if authorization.startswith("Bearer "):
+        t = authorization[7:]
+    else:
+        t = token
+    if not t:
+        raise HTTPException(status_code=401, detail="Token requis")
     entry = await db.get(ConfigEntry, "admin_password_hash")
     pwd_hash = entry.value if entry else hash_password(settings.admin_password_default)
-    if not verify_token(token, pwd_hash):
+    if not verify_token(t, pwd_hash):
         raise HTTPException(status_code=401, detail="Non autoris\u00e9")
 
 

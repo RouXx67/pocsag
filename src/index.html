@@ -556,16 +556,19 @@
       await fetch("/api/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(globalConfig) });
     }
 
+    function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;'); }
+
     function renderAliases() {
       const tbody = document.getElementById("aliasListTable"), a = globalConfig.aliases || {}, keys = Object.keys(a);
       if(!keys.length) { tbody.innerHTML = "<tr><td colspan='3'>Aucun alias.</td></tr>"; return; }
-      tbody.innerHTML = keys.map(k => `<tr><td><span class="badge-ric">${k}</span></td><td><b>${a[k]}</b></td><td><button class="btn-danger" onclick="deleteAlias('${k}')">Supprimer</button></td></tr>`).join("");
+      tbody.innerHTML = keys.map(k => `<tr><td><span class="badge-ric">${escHtml(k)}</span></td><td><b>${escHtml(a[k])}</b></td><td><button class="btn-danger" data-alias-key="${escAttr(k)}">Supprimer</button></td></tr>`).join("");
     }
 
     function renderBlacklist() {
       const tbody = document.getElementById("blacklistTable"), b = globalConfig.blacklist || [];
       if(!b.length) { tbody.innerHTML = "<tr><td colspan='2'>Aucun RIC masqué.</td></tr>"; return; }
-      tbody.innerHTML = b.map(k => `<tr><td><span class="badge-ric" style="background:#4b5563;">${k}</span></td><td><button class="btn-danger" onclick="removeBlacklist('${k}')">Retirer</button></td></tr>`).join("");
+      tbody.innerHTML = b.map(k => `<tr><td><span class="badge-ric" style="background:#4b5563;">${escHtml(k)}</span></td><td><button class="btn-danger" data-blacklist-key="${escAttr(k)}">Retirer</button></td></tr>`).join("");
     }
 
     async function clearLogs() { if(confirm("Vider l'historique ?")) { await fetch("/api/clear-logs", {method:"POST"}); fetchMessages(); } }
@@ -728,12 +731,13 @@
         if (!res.ok || text.trim().startsWith("<")) throw new Error();
         const cfg = JSON.parse(text);
         const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
-        setVal("squelchInput", cfg.squelch ?? 0);
+        setVal("squelchInput", cfg.squelch ?? 1);  // min 1 for multi-freq
         setVal("gainInput", cfg.gain ?? "19.2");
         setVal("sampleRateInput", cfg.sample_rate ?? "176400");
         setVal("outputRateInput", cfg.output_rate ?? "22050");
         setVal("restartModeInput", cfg.restart ?? "always");
         setVal("restartSecInput", cfg.restart_sec ?? 5);
+        setVal("scanIntervalInput", cfg.scan_interval ?? 30);
         setVal("serviceDescInput", cfg.description ?? "");
         setVal("serviceRawInput", cfg.raw ?? "");
       } catch(e) { console.warn("loadServiceConfig", e); }
@@ -741,12 +745,13 @@
 
     async function saveServiceConfig() {
       const svc = {
-        squelch: parseInt(document.getElementById("squelchInput").value) || 50,
+        squelch: parseInt(document.getElementById("squelchInput").value) || 1,
         gain: document.getElementById("gainInput").value.trim() || "19.2",
         sample_rate: document.getElementById("sampleRateInput").value.trim() || "176400",
         output_rate: document.getElementById("outputRateInput").value.trim() || "22050",
         restart: document.getElementById("restartModeInput").value,
         restart_sec: parseInt(document.getElementById("restartSecInput").value) || 5,
+        scan_interval: parseInt(document.getElementById("scanIntervalInput").value) || 30,
         description: document.getElementById("serviceDescInput").value.trim()
       };
       globalConfig.service = svc;
@@ -874,6 +879,15 @@
     loadVersion(); loadConfig(); checkUpdateStatus(); setInterval(fetchMessages, 3000); fetchMessages();
     fetchLogs(); toggleAutoRefreshLogs();
     setTimeout(initMap, 500);
+
+    document.getElementById("aliasListTable").addEventListener("click", function(e) {
+      const btn = e.target.closest("[data-alias-key]");
+      if (btn) deleteAlias(btn.getAttribute("data-alias-key"));
+    });
+    document.getElementById("blacklistTable").addEventListener("click", function(e) {
+      const btn = e.target.closest("[data-blacklist-key]");
+      if (btn) removeBlacklist(btn.getAttribute("data-blacklist-key"));
+    });
   </script>
 </body>
 </html>

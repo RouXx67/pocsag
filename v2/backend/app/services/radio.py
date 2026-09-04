@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import subprocess
 from typing import Optional
 
 from app.config import settings
@@ -11,6 +12,26 @@ from app.services.parser import parse_line
 from sqlalchemy import select
 
 log = logging.getLogger("pocsag.radio")
+
+CURRENT_SCAN_FREQ: Optional[str] = None
+
+
+def check_dongle() -> tuple[bool, str]:
+    """Teste si la clé RTL-SDR est détectée via rtl_test."""
+    try:
+        r = subprocess.run(
+            ["rtl_test", "-t", "-s", "1M"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if r.returncode == 0 or "Found" in r.stdout:
+            return True, "Clé RTL-SDR détectée"
+        return False, r.stderr.strip() or r.stdout.strip() or "Aucune clé détectée"
+    except FileNotFoundError:
+        return False, "rtl_test introuvable (rtl-sdr non installé)"
+    except subprocess.TimeoutExpired:
+        return False, "Timeout sur rtl_test (clé occupée ?)"
+    except Exception as e:
+        return False, str(e)
 
 
 class RadioScanner:
@@ -27,6 +48,14 @@ class RadioScanner:
     async def start(self):
         if self._running:
             return
+
+        ok, msg = check_dongle()
+        if not ok:
+            log.warning("RTL-SDR dongle check failed: %s", msg)
+            log.warning("Scanner will retry on next loop")
+        else:
+            log.info("RTL-SDR dongle OK")
+
         self._running = True
         self._task = asyncio.create_task(self._loop())
 
@@ -97,6 +126,8 @@ class RadioScanner:
                     if not self._running:
                         break
 
+                    global CURRENT_SCAN_FREQ
+                    CURRENT_SCAN_FREQ = freq
                     log.info("Scanning %s for %ds", freq, scan_interval)
 
                     try:
@@ -124,15 +155,14 @@ class RadioScanner:
             f"multimon-ng -t raw -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -f alpha -"
         )
 
-        log.info("Starting: %s", cmd[:60])
-
         self._process = await asyncio.create_subprocess_shell(
             cmd,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
         )
 
         read_task = asyncio.create_task(self._read_output(self._process))
+        stderr_task = asyncio.create_task(self._read_stderr(self._process))
 
         try:
             await asyncio.wait_for(self._process.wait(), timeout=duration)
@@ -142,8 +172,13 @@ class RadioScanner:
             pass
 
         read_task.cancel()
+        stderr_task.cancel()
         try:
             await read_task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await stderr_task
         except asyncio.CancelledError:
             pass
 
@@ -160,6 +195,21 @@ class RadioScanner:
                     parsed = parse_line(decoded)
                     if parsed and self.on_message:
                         asyncio.ensure_future(self.on_message(parsed))
+        except Exception:
+            pass
+
+    async def _read_stderr(self, proc):
+        try:
+            stderr_lines = []
+            while self._running and proc.stderr and not proc.stderr.at_eof():
+                line = await proc.stderr.readline()
+                if not line:
+                    break
+                decoded = line.decode("utf-8", errors="replace").strip()
+                if decoded and "error" in decoded.lower():
+                    stderr_lines.append(decoded)
+            if stderr_lines:
+                log.warning("rtl_fm stderr: %s", "; ".join(stderr_lines))
         except Exception:
             pass
 

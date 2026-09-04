@@ -97,6 +97,12 @@ class VersionOut(BaseModel):
     version: str
 
 
+class DongleStatus(BaseModel):
+    detected: bool
+    message: str
+    current_freq: Optional[str] = None
+
+
 class StatsOut(BaseModel):
     total_today: int = 0
     urgent_today: int = 0

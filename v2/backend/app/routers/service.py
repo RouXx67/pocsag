@@ -7,8 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session_factory, get_db
 from app.models import ConfigEntry
-from app.schemas import ServiceStatus
+from app.schemas import DongleStatus, ServiceStatus
 from app.config import settings
+from app.services.radio import CURRENT_SCAN_FREQ, check_dongle
 
 router = APIRouter(tags=["service"])
 
@@ -37,7 +38,17 @@ async def service_status(db: AsyncSession = Depends(get_db)):
     return ServiceStatus(
         active=active,
         frequencies=freqs,
-        current_freq=freqs[0] if freqs else None,
+        current_freq=CURRENT_SCAN_FREQ or (freqs[0] if freqs else None),
+    )
+
+
+@router.get("/api/radio/dongle", response_model=DongleStatus)
+async def radio_dongle():
+    ok, msg = check_dongle()
+    return DongleStatus(
+        detected=ok,
+        message=msg,
+        current_freq=CURRENT_SCAN_FREQ,
     )
 
 

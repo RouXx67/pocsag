@@ -31,9 +31,8 @@ ok "Sauvegarde créée: backup_$TS"
 systemctl stop pocsag 2>/dev/null || true
 
 info "Copie des fichiers..."
-ensure_dir() { mkdir -p "$(dirname "$1")"; }
-
-ensure_dir "$V2_DIR/backend/app"
+rm -rf "$V2_DIR/backend" "$V2_DIR/frontend" "$V2_DIR/config"
+mkdir -p "$V2_DIR/backend/app" "$V2_DIR/frontend" "$V2_DIR/config"
 cp -r "$REPO_DIR/v2/backend/app/"* "$V2_DIR/backend/app/"
 ensure_dir "$V2_DIR/frontend"
 cp -r "$REPO_DIR/v2/frontend/"* "$V2_DIR/frontend/"

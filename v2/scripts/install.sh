@@ -17,6 +17,11 @@ echo -e "${BLUE}╔════════════════════�
 echo -e "${BLUE}║     POCSAG Monitor v2 - Installation ${NC}"
 echo -e "${BLUE}╚═══════════════════════════════════════╝${NC}"
 
+info "Mise à jour du dépôt Git..."
+cd "$REPO_DIR"
+git fetch origin 2>&1 | tail -1 || true
+git pull --ff-only 2>&1 | tail -3 || git reset --hard origin/main 2>&1 | tail -1 || true
+
 info "Installation des dépendances système..."
 apt update -y 2>&1 | tail -1 || warn "apt update ignoré"
 apt install -y rtl-sdr multimon-ng python3 python3-pip python3-venv nginx git 2>&1 | tail -3 || warn "apt install ignoré"
@@ -29,6 +34,7 @@ python3 -m venv /opt/pocsag/v2/.venv
 /opt/pocsag/v2/.venv/bin/pip install -r "$REPO_DIR/v2/backend/requirements.txt" --quiet
 
 info "Copie des fichiers..."
+rm -rf /opt/pocsag/v2/backend /opt/pocsag/v2/frontend /opt/pocsag/v2/config /opt/pocsag/v2/scripts
 for d in v2/backend v2/frontend v2/config v2/scripts; do
     cp -r "$REPO_DIR/$d" "/opt/pocsag/$d"
 done

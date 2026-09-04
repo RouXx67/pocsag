@@ -665,8 +665,8 @@ def radio_scanner_loop():
                 rtl_args = ["rtl_fm", "-f", freq, "-M", "fm", "-s", str(sample_rate), "-r", str(output_rate), "-E", "offset", "-l", str(squelch), "-g", str(gain)]
                 mm_args = ["multimon-ng", "-t", "raw", "-a", "POCSAG512", "-a", "POCSAG1200", "-a", "POCSAG2400", "-f", "alpha", "-"]
 
-                log.info("[Radio Scanner] %coute sur %s (dur%e: %ds, squelch: %s, gain: %s)",
-                         "É", freq, "é", scan_interval, squelch, gain)
+                log.info("[Radio Scanner] Ecoute sur %s (duree: %ds, squelch: %s, gain: %s)",
+                         freq, scan_interval, squelch, gain)
 
                 preexec = getattr(os, 'setsid', None)
                 try:
@@ -687,7 +687,7 @@ def radio_scanner_loop():
                     rtl_proc.stdout.close()
                     proc = mm_proc
                 except Exception as e:
-                    log.error("[Radio Scanner] Erreur d%e9marrage: %s", "é", e)
+                    log.error("[Radio Scanner] Erreur demarrage: %s", e)
                     time.sleep(2)
                     continue
 

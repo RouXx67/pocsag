@@ -9,13 +9,14 @@ info(){ echo -e "${BLUE}[INFO]${NC} $1"; }
 warn(){ echo -e "${YELLOW}[ATTENTION]${NC} $1"; }
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 V2_DIR="/opt/pocsag/v2"
 BACKUP_DIR="$V2_DIR/backups"
 
 if [[ $EUID -ne 0 ]]; then err "root requis (sudo)"; exit 1; fi
 
 info "Mise à jour du dépôt Git..."
-cd "$SCRIPT_DIR"
+cd "$REPO_DIR"
 git fetch origin 2>&1 | tail -1 || true
 git pull --ff-only 2>&1 | tail -3 || git reset --hard origin/main 2>&1 | tail -1 || true
 
@@ -33,15 +34,15 @@ info "Copie des fichiers..."
 ensure_dir() { mkdir -p "$(dirname "$1")"; }
 
 ensure_dir "$V2_DIR/backend/app"
-cp -r "$SCRIPT_DIR/backend/app/"* "$V2_DIR/backend/app/"
+cp -r "$REPO_DIR/v2/backend/app/"* "$V2_DIR/backend/app/"
 ensure_dir "$V2_DIR/frontend"
-cp -r "$SCRIPT_DIR/frontend/"* "$V2_DIR/frontend/"
+cp -r "$REPO_DIR/v2/frontend/"* "$V2_DIR/frontend/"
 ensure_dir "$V2_DIR/config"
-cp "$SCRIPT_DIR/config/pocsag.service" "$V2_DIR/config/pocsag.service"
-cp "$SCRIPT_DIR/config/nginx.conf" "$V2_DIR/config/nginx.conf"
+cp "$REPO_DIR/v2/config/pocsag.service" "$V2_DIR/config/pocsag.service"
+cp "$REPO_DIR/v2/config/nginx.conf" "$V2_DIR/config/nginx.conf"
 
 info "Mise à jour des dépendances Python..."
-[ -f "$V2_DIR/.venv/bin/pip" ] && "$V2_DIR/.venv/bin/pip" install -r "$SCRIPT_DIR/backend/requirements.txt" --quiet --upgrade
+[ -f "$V2_DIR/.venv/bin/pip" ] && "$V2_DIR/.venv/bin/pip" install -r "$REPO_DIR/v2/backend/requirements.txt" --quiet --upgrade
 
 info "Mise à jour Nginx..."
 cp "$V2_DIR/config/nginx.conf" /etc/nginx/sites-available/pocsag-monitor
@@ -60,7 +61,7 @@ else
     warn "  cp -r $BACKUP_DIR/backup_$TS/app $V2_DIR/backend/ && systemctl restart pocsag"
 fi
 
-VERSION=$(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo "?")
+VERSION=$(cat "$REPO_DIR/VERSION" 2>/dev/null || echo "?")
 echo -e "${GREEN}╔═══════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║  Mise à jour terminée v$VERSION         ║${NC}"
 echo -e "${GREEN}╚═══════════════════════════════════════╝${NC}"

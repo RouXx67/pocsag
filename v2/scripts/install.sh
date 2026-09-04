@@ -9,6 +9,7 @@ info(){ echo -e "${BLUE}[INFO]${NC} $1"; }
 warn(){ echo -e "${YELLOW}[ATTENTION]${NC} $1"; }
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 if [[ $EUID -ne 0 ]]; then err "Ce script doit être exécuté en root (sudo)"; exit 1; fi
 
@@ -25,11 +26,11 @@ mkdir -p /opt/pocsag/v2/data
 
 info "Installation des dépendances Python..."
 python3 -m venv /opt/pocsag/v2/.venv
-/opt/pocsag/v2/.venv/bin/pip install -r "$SCRIPT_DIR/backend/requirements.txt" --quiet
+/opt/pocsag/v2/.venv/bin/pip install -r "$REPO_DIR/v2/backend/requirements.txt" --quiet
 
 info "Copie des fichiers..."
-for d in backend frontend config scripts; do
-    cp -r "$SCRIPT_DIR/$d" "/opt/pocsag/v2/$d"
+for d in v2/backend v2/frontend v2/config v2/scripts; do
+    cp -r "$REPO_DIR/$d" "/opt/pocsag/$d"
 done
 chmod 755 /opt/pocsag/v2/data
 

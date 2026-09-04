@@ -76,6 +76,7 @@
     #authScreen input { width:100%; margin-bottom:12px; }
     #loginError { color:#f87171; font-size:0.9rem; margin-top:8px; }
     .version-badge { background:#27272a; color:var(--sub); padding:3px 10px; border-radius:999px; font-size:0.75rem; font-weight:600; }
+.update-flag { background:#991b1b; color:#fecaca; padding:2px 8px; border-radius:999px; font-size:0.75rem; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:4px; box-shadow:0 0 10px var(--danger-glow); animation:pulseUrgent 1.5s infinite; cursor:pointer; }
   </style>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
 </head>
@@ -91,7 +92,7 @@
     <div class="container">
       <header>
         <div class="header-top">
-          <h1><span class="status-dot"></span> 📡 POCSAG Monitor <span id="appVersion" class="version-badge">v2.0.0</span></h1>
+          <h1><span class="status-dot"></span> 📡 POCSAG Monitor <span id="appVersion" class="version-badge">v2.1.0</span> <span id="updateFlag" style="display:none;" class="update-flag" onclick="runUpdate()">🚀 MAJ dispo</span></h1>
           <button class="menu-toggle" onclick="toggleMenu()">☰</button>
         </div>
         <div class="tabs" id="navTabs">
@@ -218,6 +219,12 @@
           <button class="btn-secondary" onclick="fetchLogs()">🔄 Rafraîchir</button>
           <pre id="logsConsole" class="logs-console">Chargement...</pre>
         </div>
+        <div class="card" id="updateCard" style="display:none;border-color:var(--danger);">
+          <h2 style="color:var(--danger);">🚀 Mise à jour disponible</h2>
+          <p style="color:var(--sub);font-size:0.9rem;">Une nouvelle version <span id="remoteVersion"></span> est disponible.</p>
+          <button class="btn-danger" onclick="runUpdate()">Mettre à jour maintenant</button>
+          <span id="updateStatus" class="status-msg"></span>
+        </div>
       </div>
     </div>
   </div>
@@ -260,6 +267,7 @@
       loadConfig();
       fetchMessages();
       fetchLogs();
+      checkUpdate();
       setInterval(fetchMessages, 5000);
       setTimeout(initMap, 500);
     }
@@ -372,6 +380,30 @@
     }
 
     async function clearLogs() { if (confirm("Vider l'historique ?")) { await api("/api/clear-logs",{method:"POST"}); fetchMessages(); } }
+
+    async function checkUpdate() {
+      const r = await api("/api/update/check");
+      if (r.update_available) {
+        document.getElementById("updateFlag").style.display = "inline-flex";
+        const card = document.getElementById("updateCard");
+        card.style.display = "block";
+        document.getElementById("remoteVersion").textContent = "v" + r.remote;
+      }
+    }
+
+    async function runUpdate() {
+      if (!confirm("Lancer la mise à jour ? Le service va redémarrer.")) return;
+      showStatus("updateStatus", "Mise à jour en cours...", "");
+      document.getElementById("updateFlag").style.display = "none";
+      document.getElementById("updateCard").style.display = "none";
+      const r = await api("/api/update/run", {method:"POST"});
+      if (r.status === "updating") {
+        showStatus("updateStatus", "✅ Mise à jour lancée ! Rechargement dans 15s...", "success");
+        setTimeout(() => location.reload(), 15000);
+      } else {
+        showStatus("updateStatus", "❌ " + (r.message || "Échec"), "error");
+      }
+    }
 
     async function saveSdrSettings() {
       const body = {

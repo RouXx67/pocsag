@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -28,13 +28,12 @@ async def get_messages(
 
     if urgent_only:
         kw_entry = await db.get(ConfigEntry, "keywords")
-        if kw_entry and kw_entry.value:
-            keywords = [k.strip() for k in kw_entry.value.split(",") if k.strip()]
-            if keywords:
-                from sqlalchemy import or_
-                stmt = stmt.where(
-                    or_(*[Message.message.ilike(f"%{kw}%") for kw in keywords])
-                )
+if kw_entry and kw_entry.value:
+                    keywords = [k.strip() for k in kw_entry.value.split(",") if k.strip()]
+                    if keywords:
+                        stmt = stmt.where(
+                            or_(*[Message.message.ilike(f"%{kw}%") for kw in keywords])
+                        )
 
     rows = await db.execute(stmt)
     messages = rows.scalars().all()

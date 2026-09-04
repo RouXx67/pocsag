@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import asyncio
 import subprocess
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.database import async_session_factory, get_db
 from app.models import ConfigEntry
 from app.schemas import ServiceStatus
 from app.config import settings
@@ -67,8 +65,6 @@ async def get_logs():
 @router.post("/api/test-discord")
 async def test_discord():
     from app.services.notify import send_discord
-    from app.database import async_session_factory
-    from app.models import ConfigEntry
 
     async with async_session_factory() as db:
         wh = await db.get(ConfigEntry, "discord_webhook")

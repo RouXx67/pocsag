@@ -4,22 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import verify_token
+from app.auth import verify_token, hash_password, create_token, verify_password
+from app.config import settings
 from app.database import get_db
 from app.models import Alias, BlacklistEntry, ConfigEntry
 from app.schemas import (
-    AliasCreate,
-    AliasOut,
-    BlacklistCreate,
-    BlacklistOut,
-    ConfigOut,
-    ConfigUpdate,
-    LoginRequest,
-    TokenOut,
-    VersionOut,
+    AliasCreate, AliasOut, BlacklistCreate, BlacklistOut,
+    ConfigOut, ConfigUpdate, LoginRequest, TokenOut, VersionOut,
 )
-from app.config import settings
-from app.auth import hash_password, create_token, verify_password
 
 router = APIRouter(tags=["config"])
 
@@ -158,7 +150,9 @@ async def create_alias(
     db: AsyncSession = Depends(get_db),
     _=Depends(_require_auth),
 ):
-    existing = await db.get(Alias, body.ric)
+    existing = (
+        await db.execute(select(Alias).where(Alias.ric == body.ric))
+    ).scalar_one_or_none()
     if existing:
         existing.name = body.name
     else:
@@ -190,7 +184,9 @@ async def add_blacklist(
     db: AsyncSession = Depends(get_db),
     _=Depends(_require_auth),
 ):
-    existing = await db.get(BlacklistEntry, body.ric)
+    existing = (
+        await db.execute(select(BlacklistEntry).where(BlacklistEntry.ric == body.ric))
+    ).scalar_one_or_none()
     if not existing:
         db.add(BlacklistEntry(ric=body.ric))
         await db.commit()

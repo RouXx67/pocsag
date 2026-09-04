@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -29,7 +29,6 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
     urgent = 0
     if keywords:
         conditions = [Message.message.ilike(f"%{kw}%") for kw in keywords]
-        from sqlalchemy import or_
         urgent_stmt = (
             select(func.count(Message.id))
             .where(func.date(Message.created_at) == today)

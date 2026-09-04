@@ -6,14 +6,15 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from sqlalchemy import select
+
 from app.config import settings
-from app.database import async_session_factory, engine, get_db
-from app.models import Base, ConfigEntry, Message
+from app.database import async_session_factory, engine
+from app.models import Alias, Base, BlacklistEntry, ConfigEntry, Message
 from app.routers import config as config_router
 from app.routers import messages as messages_router
 from app.routers import service as service_router
@@ -32,8 +33,6 @@ async def _on_message(parsed: dict):
     """Callback when a POCSAG line is parsed."""
     try:
         async with async_session_factory() as db:
-            from app.models import Alias, BlacklistEntry, ConfigEntry, Message
-            from sqlalchemy import select
 
             ric = parsed["ric"]
             func = parsed["func"]

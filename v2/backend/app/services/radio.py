@@ -7,7 +7,10 @@ import signal
 from typing import Optional
 
 from app.config import settings
+from app.database import async_session_factory
+from app.models import ConfigEntry
 from app.services.parser import parse_line
+from sqlalchemy import select
 
 log = logging.getLogger("pocsag.radio")
 
@@ -47,8 +50,6 @@ class RadioScanner:
     async def _loop(self):
         while self._running:
             try:
-                from app.database import async_session_factory
-                from app.models import ConfigEntry
                 async with async_session_factory() as session:
                     freqs_str = ""
                     scan_interval = settings.default_scan_interval
@@ -58,7 +59,7 @@ class RadioScanner:
                     output_rate = "22050"
 
                     rows = await session.execute(
-                        __import__("sqlalchemy").select(ConfigEntry).where(
+                        select(ConfigEntry).where(
                             ConfigEntry.key.in_([
                                 "frequencies", "scan_interval", "squelch",
                                 "gain", "sample_rate", "output_rate",

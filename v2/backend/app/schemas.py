@@ -109,3 +109,4 @@ class StatsOut(BaseModel):
     last_activity: Optional[str] = None
     top_ric: Optional[str] = None
     top_ric_alias: str = ""
+    hourly: list[int] = []

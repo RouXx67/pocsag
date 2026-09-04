@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
-import signal
 from typing import Optional
 
 from app.config import settings
@@ -18,7 +16,6 @@ log = logging.getLogger("pocsag.radio")
 class RadioScanner:
     def __init__(self, on_message):
         self._process: Optional[asyncio.subprocess.Process] = None
-        self._rtl_process: Optional[asyncio.subprocess.Process] = None
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self.on_message = on_message
@@ -121,47 +118,19 @@ class RadioScanner:
     async def _scan_frequency(
         self, freq, squelch, gain, sample_rate, output_rate, duration
     ):
-        rtl_args = [
-            "rtl_fm",
-            "-f", freq,
-            "-M", "fm",
-            "-s", str(sample_rate),
-            "-r", str(output_rate),
-            "-E", "offset",
-            "-l", str(squelch),
-            "-g", str(gain),
-        ]
-        mm_args = [
-            "multimon-ng",
-            "-t", "raw",
-            "-a", "POCSAG512",
-            "-a", "POCSAG1200",
-            "-a", "POCSAG2400",
-            "-f", "alpha",
-            "-",
-        ]
+        cmd = (
+            f"rtl_fm -f {freq} -M fm -s {sample_rate} -r {output_rate} "
+            f"-E offset -l {squelch} -g {gain} | "
+            f"multimon-ng -t raw -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -f alpha -"
+        )
 
-        preexec = getattr(os, "setsid", None)
+        log.info("Starting: %s", cmd[:60])
 
-        try:
-            self._rtl_process = await asyncio.create_subprocess_exec(
-                *rtl_args,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.DEVNULL,
-                preexec_fn=preexec,
-            )
-            self._process = await asyncio.create_subprocess_exec(
-                *mm_args,
-                stdin=self._rtl_process.stdout,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.DEVNULL,
-                preexec_fn=preexec,
-            )
-            if self._rtl_process.stdout:
-                self._rtl_process.stdout.close()
-        except Exception as e:
-            log.error("Failed to start subprocess: %s", e)
-            return
+        self._process = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
 
         read_task = asyncio.create_task(self._read_output(self._process))
 
@@ -195,29 +164,14 @@ class RadioScanner:
             pass
 
     async def _kill_processes(self):
-        for proc_attr in ("_process", "_rtl_process"):
-            proc = getattr(self, proc_attr, None)
-            if proc and proc.returncode is None:
+        proc = self._process
+        if proc and proc.returncode is None:
+            try:
+                proc.terminate()
                 try:
-                    if hasattr(os, "killpg"):
-                        try:
-                            pgid = os.getpgid(proc.pid)
-                            os.killpg(pgid, signal.SIGTERM)
-                        except ProcessLookupError:
-                            pass
-                    else:
-                        proc.terminate()
-                    try:
-                        await asyncio.wait_for(proc.wait(), timeout=2)
-                    except asyncio.TimeoutError:
-                        if hasattr(os, "killpg"):
-                            try:
-                                pgid = os.getpgid(proc.pid)
-                                os.killpg(pgid, signal.SIGKILL)
-                            except ProcessLookupError:
-                                pass
-                        else:
-                            proc.kill()
-                except Exception:
-                    pass
-            setattr(self, proc_attr, None)
+                    await asyncio.wait_for(proc.wait(), timeout=2)
+                except asyncio.TimeoutError:
+                    proc.kill()
+            except Exception:
+                pass
+        self._process = None

@@ -236,7 +236,8 @@
         <div class="service-grid" style="margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px;">
           <div>
             <label style="font-weight:bold; display:block; margin-bottom:5px;">Squelch (-l) :</label>
-            <input type="number" id="squelchInput" value="0" min="0" max="100" style="width:100%;">
+            <input type="number" id="squelchInput" value="1" min="1" max="100" style="width:100%;">
+            <span style="font-size:0.8em; color:var(--muted);">(min 1 pour multi-fréquence)</span>
           </div>
           <div>
             <label style="font-weight:bold; display:block; margin-bottom:5px;">Gain (-g) :</label>
@@ -250,6 +251,11 @@
             <label style="font-weight:bold; display:block; margin-bottom:5px;">Output Rate (-r) :</label>
             <input type="text" id="outputRateInput" value="22050" style="width:100%;">
           </div>
+        </div>
+        <div style="margin-bottom:15px;">
+          <label style="font-weight:bold; display:block; margin-bottom:5px;">Scan interval (s / fréquence) :</label>
+          <input type="number" id="scanIntervalInput" value="30" min="5" max="300" style="width:100%;">
+          <span style="font-size:0.8em; color:var(--muted);">délai entre chaque fréquence lors du balayage</span>
         </div>
 
         <div style="margin-top:15px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
@@ -415,12 +421,13 @@
       const rawSquelch = parseInt(document.getElementById("squelchInput").value);
       globalConfig.frequencies = freqs;
       globalConfig.service = {
-        squelch: !isNaN(rawSquelch) ? rawSquelch : 0,
+        squelch: !isNaN(rawSquelch) ? rawSquelch : 1,  // min 1 for multi-freq
         gain: document.getElementById("gainInput").value.trim() || "19.2",
         sample_rate: document.getElementById("sampleRateInput").value.trim() || "176400",
         output_rate: document.getElementById("outputRateInput").value.trim() || "22050",
         restart: "always",
         restart_sec: 5,
+        scan_interval: parseInt(document.getElementById("scanIntervalInput").value) || 30,
         description: "Decoder POCSAG RTL-SDR vers Web, Telegram et Discord"
       };
 

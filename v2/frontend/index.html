@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POCSAG Monitor v2 — Dashboard</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#09090b">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <style>
+    :root { --bg: #09090b; --card: #121216; --card-hover: #18181f; --border: #27272a; --primary: #0284c7; --primary-glow: rgba(2,132,199,0.15); --danger: #ef4444; --danger-glow: rgba(239,68,68,0.2); --success: #22c55e; --text: #f4f4f5; --sub: #a1a1aa; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui,-apple-system,sans-serif; background: var(--bg); color: var(--text); margin:0; padding:20px; }
+    .container { max-width:1300px; margin:0 auto; }
+    header { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:15px; margin-bottom:25px; background:var(--card); padding:15px 20px; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,0.5); }
+    h1 { color:#38bdf8; font-size:1.3rem; margin:0; display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:-0.02em; }
+    .status-dot { width:10px; height:10px; background:var(--success); border-radius:50%; display:inline-block; box-shadow:0 0 10px var(--success); }
+    .tabs { display:flex; gap:8px; }
+    .tab-btn { background:transparent; border:1px solid var(--border); color:var(--sub); padding:8px 16px; border-radius:8px; cursor:pointer; font-weight:600; font-size:0.9rem; transition:all 0.2s; }
+    .tab-btn:hover { border-color:var(--primary); color:var(--text); }
+    .tab-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); box-shadow:0 0 15px var(--primary-glow); }
+    .tab-content { display:none; }
+    .tab-content.active { display:block; animation:fadeIn 0.3s ease; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+    .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:15px; margin-bottom:25px; }
+    .stat-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; position:relative; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,0.3); }
+    .stat-card::before { content:''; position:absolute; top:0; left:0; width:4px; height:100%; background:var(--primary); }
+    .stat-card.urgent-stat::before { background:var(--danger); }
+    .stat-title { color:var(--sub); font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; }
+    .stat-val { font-size:2rem; font-weight:800; color:#38bdf8; margin-top:8px; font-variant-numeric:tabular-nums; }
+    .stat-card.urgent-stat .stat-val { color:#f87171; }
+    .map-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:15px; margin-bottom:25px; box-shadow:0 4px 12px rgba(0,0,0,0.3); }
+    .map-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; font-size:0.95rem; font-weight:700; color:#38bdf8; }
+    #generalMap { width:100%; height:380px; border-radius:8px; border:1px solid var(--border); z-index:1; background:#121216; }
+    .toolbar { display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; align-items:center; }
+    input[type="text"],input[type="url"],input[type="password"] { flex:1; min-width:220px; background:#000; border:1px solid var(--border); color:#fff; padding:10px 14px; border-radius:8px; font-size:0.95rem; }
+    input:focus,select:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-glow); }
+    .filter-pills { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:15px; }
+    .pill { background:var(--card); border:1px solid var(--border); color:var(--sub); padding:6px 14px; border-radius:999px; font-size:0.85rem; font-weight:600; cursor:pointer; transition:all 0.2s; }
+    .pill:hover { border-color:var(--sub); color:var(--text); }
+    .pill.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+    .pill.pill-urgent.active { background:var(--danger); border-color:var(--danger); }
+    button { background:var(--primary); color:#fff; border:none; padding:10px 18px; border-radius:8px; cursor:pointer; font-weight:600; font-size:0.9rem; transition:opacity 0.2s; }
+    button:hover { opacity:0.9; }
+    button.btn-danger { background:var(--danger); }
+    button.btn-secondary { background:#27272a; color:#fff; }
+    .table-container { background:var(--card); border:1px solid var(--border); border-radius:12px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,0.3); }
+    table { width:100%; border-collapse:collapse; text-align:left; }
+    th,td { padding:14px 18px; border-bottom:1px solid var(--border); font-size:0.9rem; }
+    th { background:#181820; color:#38bdf8; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; font-weight:700; }
+    tr:hover td { background:var(--card-hover); }
+    .badge-ric { background:#0369a1; color:#e0f2fe; padding:4px 8px; border-radius:6px; font-weight:700; font-family:monospace; font-size:0.85rem; }
+    .badge-urgent { background:#991b1b; color:#fecaca; padding:3px 8px; border-radius:6px; font-size:0.75rem; font-weight:800; letter-spacing:0.05em; box-shadow:0 0 10px var(--danger-glow); display:inline-block; animation:pulseUrgent 1.5s infinite; }
+    @keyframes pulseUrgent { 0%{opacity:1} 50%{opacity:0.6} 100%{opacity:1} }
+    .alias-tag { color:#4ade80; font-weight:600; margin-left:6px; font-size:0.85rem; }
+    .maps-link { color:#38bdf8; text-decoration:none; font-weight:600; font-size:0.85rem; background:rgba(56,189,248,0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(56,189,248,0.2); display:inline-block; }
+    .status-msg { margin-top:10px; font-size:0.85rem; font-weight:600; }
+    .status-msg.success { color:#4ade80; }
+    .status-msg.error { color:#f87171; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:20px; box-shadow:0 4px 12px rgba(0,0,0,0.3); }
+    .service-grid { display:grid; grid-template-columns:1fr 1fr; gap:15px; }
+    select { background:#000; border:1px solid var(--border); color:#fff; padding:10px 12px; border-radius:8px; font-size:0.95rem; }
+    .logs-console { background:#000; color:#4ade80; border:1px solid var(--border); border-radius:10px; padding:15px; max-height:450px; overflow-y:auto; font-size:0.8rem; white-space:pre-wrap; word-break:break-all; font-family:monospace; }
+    .menu-toggle { display:none; background:transparent; border:1px solid var(--border); color:var(--text); font-size:1.2rem; padding:6px 12px; border-radius:8px; cursor:pointer; }
+    @media (max-width:768px) {
+      header { flex-direction:column; align-items:flex-start; gap:12px; padding:15px; }
+      .header-top { width:100%; display:flex; justify-content:space-between; align-items:center; }
+      .menu-toggle { display:block; }
+      .tabs { display:none; width:100%; flex-direction:column; gap:6px; background:var(--card); padding:12px; border:1px solid var(--border); border-radius:10px; }
+      .tabs.open { display:flex; }
+      .tab-btn { width:100%; text-align:left; }
+      .service-grid { grid-template-columns:1fr; }
+    }
+    #authScreen { text-align:center; padding:60px 20px; max-width:400px; margin:100px auto; }
+    #authScreen h2 { color:#38bdf8; }
+    #authScreen input { width:100%; margin-bottom:12px; }
+    #loginError { color:#f87171; font-size:0.9rem; margin-top:8px; }
+    .version-badge { background:#27272a; color:var(--sub); padding:3px 10px; border-radius:999px; font-size:0.75rem; font-weight:600; }
+  </style>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
+</head>
+<body>
+  <div id="authScreen" style="display:none;">
+    <h2>🔒 POCSAG Monitor v2</h2>
+    <p style="color:var(--sub);">Authentification requise</p>
+    <input type="password" id="loginPassword" placeholder="Mot de passe administrateur">
+    <button onclick="login()" style="width:100%;">Se connecter</button>
+    <div id="loginError"></div>
+  </div>
+  <div id="appContent">
+    <div class="container">
+      <header>
+        <div class="header-top">
+          <h1><span class="status-dot"></span> 📡 POCSAG Monitor <span id="appVersion" class="version-badge">v2.0.0</span></h1>
+          <button class="menu-toggle" onclick="toggleMenu()">☰</button>
+        </div>
+        <div class="tabs" id="navTabs">
+          <button class="tab-btn active" onclick="switchTab('monitoring',event)">📡 Direct</button>
+          <button class="tab-btn" onclick="switchTab('settings',event)">⚙️ Settings</button>
+        </div>
+      </header>
+
+      <div id="tab-monitoring" class="tab-content active">
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-title">Trames du jour</div><div class="stat-val" id="statToday">0</div></div>
+          <div class="stat-card urgent-stat"><div class="stat-title">Urgences</div><div class="stat-val" id="statUrgents">0</div></div>
+          <div class="stat-card"><div class="stat-title">Dernière activité</div><div class="stat-val" id="statLastTime" style="font-size:1.3rem;margin-top:10px;">--:--</div></div>
+          <div class="stat-card"><div class="stat-title">RIC Principal</div><div class="stat-val" id="statTopRic" style="font-size:1.3rem;margin-top:10px;">--</div></div>
+        </div>
+        <div class="map-card">
+          <div class="map-header"><span>📍 Carte des interventions</span><span style="font-size:0.75rem;color:var(--sub);font-weight:normal;" id="mapCount">0 géolocalisées</span></div>
+          <div id="generalMap"></div>
+        </div>
+        <div class="filter-pills">
+          <div class="pill active" onclick="setFilter('all',this)">📋 Tous</div>
+          <div class="pill pill-urgent" onclick="setFilter('urgent',this)">🚨 Urgents</div>
+          <div class="pill" onclick="setFilter('vsav',this)">🚒 VSAV</div>
+          <div class="pill" onclick="setFilter('fpt',this)">🚒 FPT</div>
+        </div>
+        <div class="toolbar">
+          <input type="text" id="searchInput" placeholder="🔍 Rechercher..." onkeyup="fetchMessages()">
+          <button class="btn-secondary" onclick="clearLogs()">Vider</button>
+          <button class="btn-secondary" onclick="requestNotifPermission()">🔔 Notifs</button>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead><tr><th style="width:150px;">Heure</th><th style="width:220px;">RIC / Engin</th><th>Message</th><th style="width:160px;">Navigation</th></tr></thead>
+            <tbody id="messagesTable"><tr><td colspan="4" style="color:var(--sub);text-align:center;padding:30px;">Chargement...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="tab-settings" class="tab-content">
+        <div class="card">
+          <h2>📻 Fréquences & Paramètres</h2>
+          <div class="service-grid">
+            <div>
+              <label style="font-weight:bold;display:block;margin-bottom:5px;">Fréquences (séparées par virgule) :</label>
+              <input type="text" id="freqInput" placeholder="85.955M,173512.5k">
+            </div>
+            <div>
+              <label style="font-weight:bold;display:block;margin-bottom:5px;">Scan interval (s) :</label>
+              <input type="number" id="scanIntervalInput" min="5" max="300">
+            </div>
+            <div>
+              <label style="font-weight:bold;display:block;margin-bottom:5px;">Squelch (-l) :</label>
+              <input type="number" id="squelchInput" min="0" max="100">
+            </div>
+            <div>
+              <label style="font-weight:bold;display:block;margin-bottom:5px;">Gain (-g) :</label>
+              <input type="text" id="gainInput">
+            </div>
+            <div>
+              <label style="font-weight:bold;display:block;margin-bottom:5px;">Sample Rate (-s) :</label>
+              <input type="text" id="sampleRateInput">
+            </div>
+            <div>
+              <label style="font-weight:bold;display:block;margin-bottom:5px;">Output Rate (-r) :</label>
+              <input type="text" id="outputRateInput">
+            </div>
+          </div>
+          <button onclick="saveSdrSettings()" style="margin-top:15px;">💾 Enregistrer</button>
+          <span id="freqStatus" class="status-msg"></span>
+        </div>
+        <div class="card">
+          <h2>🔔 Notifications</h2>
+          <div style="margin-bottom:12px;">
+            <label style="font-weight:bold;display:block;margin-bottom:5px;">Discord Webhook :</label>
+            <input type="url" id="webhookUrl" placeholder="https://discord.com/api/webhooks/...">
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:12px;">
+            <div style="flex:1;">
+              <label style="font-weight:bold;display:block;margin-bottom:5px;">Telegram Bot Token :</label>
+              <input type="text" id="tgToken" placeholder="123456:ABC-DEF...">
+            </div>
+            <div style="flex:1;">
+              <label style="font-weight:bold;display:block;margin-bottom:5px;">Telegram Chat ID :</label>
+              <input type="text" id="tgChatId" placeholder="-100123456789">
+            </div>
+          </div>
+          <div style="margin-bottom:12px;">
+            <label style="font-weight:bold;display:block;margin-bottom:5px;">Mots-clés prioritaires :</label>
+            <input type="text" id="keywordsInput" placeholder="AVP, FEU, DESINCARCERATION">
+          </div>
+          <label><input type="checkbox" id="notifyEmpty"> Notifier les trames sans texte</label>
+          <div style="margin-top:12px;">
+            <button onclick="saveNotifications()">Enregistrer</button>
+            <button class="btn-secondary" onclick="testDiscord()">Tester Discord</button>
+          </div>
+          <span id="notifStatus" class="status-msg"></span>
+        </div>
+        <div class="card">
+          <h2>🏷️ Alias RIC</h2>
+          <div class="toolbar">
+            <input type="text" id="aliasRicInput" placeholder="RIC">
+            <input type="text" id="aliasNameInput" placeholder="Nom d'engin">
+            <button onclick="saveAlias()">Ajouter</button>
+          </div>
+          <table><thead><tr><th>RIC</th><th>Alias</th><th>Action</th></tr></thead><tbody id="aliasListTable"></tbody></table>
+        </div>
+        <div class="card">
+          <h2>🚫 Blacklist</h2>
+          <div class="toolbar">
+            <input type="text" id="blacklistRicInput" placeholder="RIC à masquer">
+            <button class="btn-danger" onclick="addBlacklist()">Masquer</button>
+          </div>
+          <table><thead><tr><th>RIC</th><th>Action</th></tr></thead><tbody id="blacklistTable"></tbody></table>
+        </div>
+        <div class="card">
+          <h2>🔒 Sécurité</h2>
+          <label style="font-weight:bold;display:block;margin-bottom:5px;">Nouveau mot de passe :</label>
+          <input type="password" id="adminPwdInput" placeholder="Laisser vide pour ne pas changer">
+          <button onclick="changePassword()">Changer</button>
+          <span id="pwdStatus" class="status-msg"></span>
+        </div>
+        <div class="card">
+          <h2>📋 Logs du service</h2>
+          <button class="btn-secondary" onclick="fetchLogs()">🔄 Rafraîchir</button>
+          <pre id="logsConsole" class="logs-console">Chargement...</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let TOKEN = sessionStorage.getItem("pocsag_token") || "";
+    let messages = [];
+    let leafletMap = null;
+    let markersLayer = null;
+    let currentFilter = "all";
+
+    function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;'); }
+
+    async function api(path, opts={}) {
+      const headers = {"Content-Type":"application/json",...opts.headers};
+      if (TOKEN) headers["Authorization"] = `Bearer ${TOKEN}`;
+      const res = await fetch(path, {...opts, headers});
+      const text = await res.text();
+      if (!text) return {};
+      try { return JSON.parse(text); } catch { return text; }
+    }
+
+    async function login() {
+      const pwd = document.getElementById("loginPassword").value;
+      const res = await api("/api/auth/login", {method:"POST", body:JSON.stringify({password:pwd})});
+      if (res.access_token) {
+        TOKEN = res.access_token;
+        sessionStorage.setItem("pocsag_token", TOKEN);
+        document.getElementById("authScreen").style.display = "none";
+        document.getElementById("appContent").style.display = "block";
+        init();
+      } else {
+        document.getElementById("loginError").textContent = "Mot de passe incorrect";
+      }
+    }
+
+    async function init() {
+      loadVersion();
+      loadConfig();
+      fetchMessages();
+      fetchLogs();
+      setInterval(fetchMessages, 5000);
+      setTimeout(initMap, 500);
+    }
+
+    if (TOKEN) {
+      document.getElementById("appContent").style.display = "block";
+      init();
+    } else {
+      document.getElementById("authScreen").style.display = "block";
+    }
+
+    async function loadVersion() {
+      const v = await api("/api/version");
+      document.getElementById("appVersion").textContent = "v" + (v.version || "?");
+    }
+
+    async function loadConfig() {
+      const cfg = await api("/api/config");
+      if (cfg.frequencies) document.getElementById("freqInput").value = cfg.frequencies.join(", ");
+      if (cfg.scan_interval) document.getElementById("scanIntervalInput").value = cfg.scan_interval;
+      if (cfg.squelch !== undefined) document.getElementById("squelchInput").value = cfg.squelch;
+      if (cfg.gain) document.getElementById("gainInput").value = cfg.gain;
+      if (cfg.sample_rate) document.getElementById("sampleRateInput").value = cfg.sample_rate;
+      if (cfg.output_rate) document.getElementById("outputRateInput").value = cfg.output_rate;
+      if (cfg.discord_webhook) document.getElementById("webhookUrl").value = cfg.discord_webhook;
+      if (cfg.telegram_bot_token) document.getElementById("tgToken").value = cfg.telegram_bot_token;
+      if (cfg.telegram_chat_id) document.getElementById("tgChatId").value = cfg.telegram_chat_id;
+      if (cfg.keywords) document.getElementById("keywordsInput").value = cfg.keywords.join(", ");
+      document.getElementById("notifyEmpty").checked = cfg.notify_empty !== false;
+      renderAliases(cfg.aliases || {});
+      renderBlacklist(cfg.blacklist || []);
+    }
+
+    async function fetchMessages() {
+      const s = document.getElementById("searchInput").value;
+      const url = "/api/messages?limit=200" + (s ? "&search="+encodeURIComponent(s) : "");
+      const data = await api(url);
+      if (Array.isArray(data)) {
+        messages = data;
+        updateStats();
+        renderMessages();
+        updateMapMarkers();
+      }
+    }
+
+    async function updateStats() {
+      const s = await api("/api/stats");
+      document.getElementById("statToday").textContent = s.total_today ?? 0;
+      document.getElementById("statUrgents").textContent = s.urgent_today ?? 0;
+      if (s.last_activity) {
+        const d = new Date(s.last_activity);
+        document.getElementById("statLastTime").textContent = d.toLocaleTimeString("fr-FR");
+      }
+      document.getElementById("statTopRic").textContent = s.top_ric_alias || s.top_ric || "--";
+    }
+
+    function renderMessages() {
+      const tbody = document.getElementById("messagesTable");
+      const keywords = (document.getElementById("keywordsInput").value || "").split(",").map(k=>k.trim().toLowerCase()).filter(k=>k);
+      const filtered = messages.filter(m => {
+        if (currentFilter === "urgent") return m.is_urgent;
+        if (currentFilter === "vsav") return m.message.toUpperCase().includes("VSAV");
+        if (currentFilter === "fpt") return m.message.toUpperCase().includes("FPT");
+        return true;
+      });
+      if (!filtered.length) { tbody.innerHTML = "<tr><td colspan='4' style='color:var(--sub);text-align:center;padding:30px;'>Aucun message.</td></tr>"; return; }
+      tbody.innerHTML = filtered.map(m => {
+        const gmaps = m.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.address)}` : "";
+        return `<tr>
+          <td style="color:var(--sub);">${new Date(m.created_at).toLocaleString("fr-FR")}</td>
+          <td><span class="badge-ric">${escHtml(m.ric)}</span>${m.alias ? ` <span class="alias-tag">(${escHtml(m.alias)})</span>` : ""}${m.is_urgent ? ' <span class="badge-urgent">URGENT</span>' : ""}</td>
+          <td>${escHtml(m.message)}</td>
+          <td>${m.address ? `<div style="font-size:0.85rem;margin-bottom:4px;">${escHtml(m.address)}</div><a class="maps-link" href="${gmaps}" target="_blank">🗺️ Maps</a>` : "-"}</td>
+        </tr>`;
+      }).join("");
+    }
+
+    function initMap() {
+      if (leafletMap) return;
+      try {
+        leafletMap = L.map("generalMap", {zoomControl:true}).setView([48.4,7.5],9);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {attribution:"&copy; OpenStreetMap", maxZoom:19}).addTo(leafletMap);
+        markersLayer = L.layerGroup().addTo(leafletMap);
+      } catch(e) { console.warn("Map:",e); }
+    }
+
+    function updateMapMarkers() {
+      if (!leafletMap || !markersLayer) return;
+      markersLayer.clearLayers();
+      let count = 0, bounds = [];
+      messages.forEach(m => {
+        if (m.lat != null && m.lon != null) {
+          const color = m.is_urgent ? "#ef4444" : "#0284c7";
+          const mk = L.circleMarker([m.lat,m.lon], {radius:8,fillColor:color,color:"#fff",weight:2,fillOpacity:0.9});
+          mk.bindPopup(`<b style="color:${color}">${m.is_urgent?"🚨 URGENT":"📋 ALERTE"}</b><br><b>RIC:</b> ${m.ric} ${m.alias?"("+m.alias+")":""}<br><b>Adresse:</b> ${m.address||"N/A"}<br><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.address||"")}" target="_blank">🗺️ Google Maps</a>`);
+          markersLayer.addLayer(mk);
+          bounds.push([m.lat,m.lon]);
+          count++;
+        }
+      });
+      document.getElementById("mapCount").textContent = count + " géolocalisées";
+      if (bounds.length && !window._mapCentered) { leafletMap.fitBounds(bounds,{padding:[50,50],maxZoom:14}); window._mapCentered=true; }
+    }
+
+    function setFilter(type,btn) {
+      document.querySelectorAll(".pill").forEach(p=>p.classList.remove("active"));
+      btn.classList.add("active");
+      currentFilter = type;
+      renderMessages();
+    }
+
+    async function clearLogs() { if (confirm("Vider l'historique ?")) { await api("/api/clear-logs",{method:"POST"}); fetchMessages(); } }
+
+    async function saveSdrSettings() {
+      const body = {
+        frequencies: document.getElementById("freqInput").value.split(",").map(s=>s.trim()).filter(s=>s),
+        scan_interval: parseInt(document.getElementById("scanIntervalInput").value) || 30,
+        squelch: parseInt(document.getElementById("squelchInput").value) || 0,
+        gain: document.getElementById("gainInput").value || "19.2",
+        sample_rate: document.getElementById("sampleRateInput").value || "176400",
+        output_rate: document.getElementById("outputRateInput").value || "22050",
+      };
+      await api("/api/config", {method:"POST",body:JSON.stringify(body)});
+      showStatus("freqStatus","✅ Enregistré","success");
+    }
+
+    async function saveNotifications() {
+      const body = {
+        discord_webhook: document.getElementById("webhookUrl").value.trim(),
+        telegram_bot_token: document.getElementById("tgToken").value.trim(),
+        telegram_chat_id: document.getElementById("tgChatId").value.trim(),
+        notify_empty: document.getElementById("notifyEmpty").checked,
+        keywords: document.getElementById("keywordsInput").value.split(",").map(s=>s.trim()).filter(s=>s),
+      };
+      await api("/api/config", {method:"POST",body:JSON.stringify(body)});
+      showStatus("notifStatus","✅ Enregistré","success");
+    }
+
+    async function testDiscord() {
+      const r = await api("/api/test-discord", {method:"POST"});
+      showStatus("notifStatus", r.success ? "✅ Test envoyé" : "❌ "+r.message, r.success?"success":"error");
+    }
+
+    async function saveAlias() {
+      const ric = document.getElementById("aliasRicInput").value.trim();
+      const name = document.getElementById("aliasNameInput").value.trim();
+      if (!ric || !name) return;
+      await api("/api/aliases", {method:"POST", body:JSON.stringify({ric,name})});
+      document.getElementById("aliasRicInput").value = "";
+      document.getElementById("aliasNameInput").value = "";
+      loadConfig();
+    }
+
+    async function deleteAlias(ric) {
+      await api("/api/aliases/"+encodeURIComponent(ric), {method:"DELETE"});
+      loadConfig();
+    }
+
+    async function addBlacklist() {
+      const ric = document.getElementById("blacklistRicInput").value.trim();
+      if (!ric) return;
+      await api("/api/blacklist", {method:"POST", body:JSON.stringify({ric})});
+      document.getElementById("blacklistRicInput").value = "";
+      loadConfig();
+    }
+
+    async function removeBlacklist(ric) {
+      await api("/api/blacklist/"+encodeURIComponent(ric), {method:"DELETE"});
+      loadConfig();
+    }
+
+    async function changePassword() {
+      const pwd = document.getElementById("adminPwdInput").value.trim();
+      if (!pwd) { showStatus("pwdStatus","Mot de passe vide","error"); return; }
+      const r = await api("/api/auth/change-password?token="+TOKEN, {method:"POST", body:JSON.stringify({password:pwd})});
+      showStatus("pwdStatus", r.status==="ok" ? "✅ Modifié" : "❌ Erreur", r.status==="ok"?"success":"error");
+      if (r.status==="ok") document.getElementById("adminPwdInput").value = "";
+    }
+
+    async function fetchLogs() {
+      const text = await api("/api/logs");
+      document.getElementById("logsConsole").textContent = typeof text === "string" ? (text || "(vide)") : JSON.stringify(text);
+    }
+
+    function renderAliases(aliases) {
+      const tbody = document.getElementById("aliasListTable"), keys = Object.keys(aliases);
+      if (!keys.length) { tbody.innerHTML = "<tr><td colspan='3'>Aucun alias.</td></tr>"; return; }
+      tbody.innerHTML = keys.map(k => `<tr><td><span class="badge-ric">${escHtml(k)}</span></td><td><b>${escHtml(aliases[k])}</b></td><td><button class="btn-danger" onclick="deleteAlias('${escAttr(k)}')">Supprimer</button></td></tr>`).join("");
+    }
+
+    function renderBlacklist(list) {
+      const tbody = document.getElementById("blacklistTable");
+      if (!list.length) { tbody.innerHTML = "<tr><td colspan='2'>Aucun RIC masqué.</td></tr>"; return; }
+      tbody.innerHTML = list.map(k => `<tr><td><span class="badge-ric" style="background:#4b5563;">${escHtml(k)}</span></td><td><button class="btn-danger" onclick="removeBlacklist('${escAttr(k)}')">Retirer</button></td></tr>`).join("");
+    }
+
+    function showStatus(id,msg,type) { const el = document.getElementById(id); if(el) { el.textContent=msg; el.className="status-msg "+type; } }
+
+    function toggleMenu() { document.getElementById("navTabs").classList.toggle("open"); }
+
+    function switchTab(id,evt) {
+      document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
+      if (evt && evt.target) evt.target.classList.add("active");
+      document.getElementById("tab-"+id).classList.add("active");
+      document.getElementById("navTabs").classList.remove("open");
+    }
+
+    async function requestNotifPermission() {
+      if (!("Notification" in window)) { alert("Notifications non supportées"); return; }
+      const p = await Notification.requestPermission();
+      if (p === "granted") new Notification("POCSAG Monitor", {body:"Notifications activées"});
+    }
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(()=>{});
+    }
+  </script>
+</body>
+</html>

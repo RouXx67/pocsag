@@ -1,0 +1,15 @@
+[Unit]
+Description=POCSAG Monitor v2 - Decodeur RTL-SDR vers Web, Telegram et Discord
+After=network.target nginx.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/pocsag/v2/backend
+ExecStart=/usr/bin/python3 /opt/pocsag/v2/backend/app/main.py
+Restart=always
+RestartSec=5
+Environment=POCSAG_LOG_LEVEL=INFO
+
+[Install]
+WantedBy=multi-user.target

@@ -49,6 +49,14 @@ class RadioScanner:
         if self._running:
             return
 
+        # Tuer tout processus rtl_fm résiduel avant de commencer
+        try:
+            subprocess.run(["pkill", "-9", "rtl_fm"], capture_output=True, timeout=3)
+            subprocess.run(["pkill", "-9", "multimon-ng"], capture_output=True, timeout=3)
+        except Exception:
+            pass
+        await asyncio.sleep(0.5)
+
         ok, msg = check_dongle()
         if not ok:
             log.warning("RTL-SDR dongle check failed: %s", msg)
@@ -162,7 +170,6 @@ class RadioScanner:
         )
 
         read_task = asyncio.create_task(self._read_output(self._process))
-        stderr_task = asyncio.create_task(self._read_stderr(self._process))
 
         try:
             await asyncio.wait_for(self._process.wait(), timeout=duration)
@@ -172,15 +179,19 @@ class RadioScanner:
             pass
 
         read_task.cancel()
-        stderr_task.cancel()
         try:
             await read_task
         except asyncio.CancelledError:
             pass
-        try:
-            await stderr_task
-        except asyncio.CancelledError:
-            pass
+
+        # Log stderr si le processus a echoue
+        if self._process and self._process.returncode != 0 and self._process.stderr:
+            try:
+                err = await self._process.stderr.read()
+                if err:
+                    log.warning("Radio stderr: %s", err.decode("utf-8", errors="replace")[:300])
+            except Exception:
+                pass
 
         await self._kill_processes()
 
@@ -195,21 +206,6 @@ class RadioScanner:
                     parsed = parse_line(decoded)
                     if parsed and self.on_message:
                         asyncio.ensure_future(self.on_message(parsed))
-        except Exception:
-            pass
-
-    async def _read_stderr(self, proc):
-        try:
-            stderr_lines = []
-            while self._running and proc.stderr and not proc.stderr.at_eof():
-                line = await proc.stderr.readline()
-                if not line:
-                    break
-                decoded = line.decode("utf-8", errors="replace").strip()
-                if decoded and "error" in decoded.lower():
-                    stderr_lines.append(decoded)
-            if stderr_lines:
-                log.warning("rtl_fm stderr: %s", "; ".join(stderr_lines))
         except Exception:
             pass
 

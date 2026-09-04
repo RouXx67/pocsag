@@ -6,7 +6,8 @@ After=network.target nginx.service
 Type=simple
 User=root
 WorkingDirectory=/opt/pocsag/v2/backend
-ExecStart=/opt/pocsag/v2/.venv/bin/python /opt/pocsag/v2/backend/app/main.py
+WorkingDirectory=/opt/pocsag/v2/backend
+ExecStart=/opt/pocsag/v2/.venv/bin/python -m app.main
 Restart=always
 RestartSec=5
 Environment=POCSAG_LOG_LEVEL=INFO

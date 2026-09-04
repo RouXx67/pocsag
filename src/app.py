@@ -13,9 +13,9 @@ log = logging.getLogger("pocsag")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.environ.get("POCSAG_CONFIG", os.path.join(BASE_DIR, "config.json"))
-LOG_FILE = os.environ.get("POCSAG_LOG", os.path.join(BASE_DIR, "..", "www", "data.json"))
+LOG_FILE = os.environ.get("POCSAG_LOG", "/var/www/html/data.json")
 SERVICE_FILE = "/etc/systemd/system/pocsag.service"
-VERSION_FILE = os.path.join(os.path.dirname(BASE_DIR), "VERSION")
+VERSION_FILE = os.path.join(BASE_DIR, "VERSION")
 DEFAULT_FREQUENCIES = ["85.955M", "173512.5k"]
 FREQ_MAX = 3
 SCAN_INTERVAL_MIN = 5
@@ -32,13 +32,11 @@ CURRENT_SCAN_FREQ = None
 
 
 def get_version():
-    for path in [VERSION_FILE, os.path.join(BASE_DIR, "VERSION")]:
-        try:
-            with open(path, "r") as f:
-                return f.read().strip()
-        except Exception:
-            continue
-    return "1.0.0"
+    try:
+        with open(VERSION_FILE, "r") as f:
+            return f.read().strip()
+    except Exception:
+        return "1.0.0"
 
 
 def parse_service_file():
@@ -568,9 +566,6 @@ class APIHandler(BaseHTTPRequestHandler):
         if raw:
             service_content = raw
         else:
-            config = get_config()
-            freqs = config.get("frequencies", DEFAULT_FREQUENCIES)
-            freq_args = " ".join(f"-f {f}" for f in freqs)
             squelch = cfg.get("squelch", 0)
             gain = cfg.get("gain", "19.2")
             sample_rate = cfg.get("sample_rate", "176400")
@@ -581,7 +576,26 @@ class APIHandler(BaseHTTPRequestHandler):
             after = cfg.get("after", "network.target nginx.service")
             service_type = cfg.get("service_type", "simple")
             user = cfg.get("user", "root")
-            exec_start = f'/bin/bash -c "rtl_fm {freq_args} -M fm -s {sample_rate} -r {output_rate} -E offset -l {squelch} -g {gain} | multimon-ng -t raw -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -f alpha - | python3 {os.path.join(BASE_DIR, "app.py")}"'
+            python_bin = sys.executable or "/usr/bin/python3"
+            exec_start = f"{python_bin} {os.path.join(BASE_DIR, 'app.py')}"
+
+            config_to_save = get_config()
+            config_to_save["service"] = {
+                "squelch": squelch,
+                "gain": gain,
+                "sample_rate": sample_rate,
+                "output_rate": output_rate,
+                "restart": restart,
+                "restart_sec": restart_sec,
+                "description": description,
+                "after": after,
+                "service_type": service_type,
+                "user": user
+            }
+            if "frequencies" in cfg:
+                config_to_save["frequencies"] = normalize_frequencies(cfg["frequencies"])
+            save_config(config_to_save)
+
             service_content = f"""[Unit]
 Description={description}
 After={after}
@@ -748,11 +762,15 @@ def _kill_process_group(proc, can_killpg):
 
 
 threading.Thread(target=lambda: HTTPServer((HTTP_HOST, HTTP_PORT), APIHandler).serve_forever(), daemon=True).start()
-threading.Thread(target=stdin_listener, daemon=True).start()
 
 try:
     update_pocsag_service()
 except Exception:
     pass
 
-radio_scanner_loop()
+# Mode pipe (ancien service bash) : lire stdin, ne pas demarrer radio_scanner
+# Mode direct (nouveau service) : stdin est un TTY, lancer radio_scanner_loop
+if sys.stdin and not sys.stdin.isatty():
+    stdin_listener()
+else:
+    radio_scanner_loop()

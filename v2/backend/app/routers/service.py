@@ -132,9 +132,17 @@ async def run_update():
     if not script:
         return {"status": "error", "message": "Script update.sh introuvable"}
 
-    def _run():
-        sp.run(["bash", script, "--force"], timeout=120)
-
-    import threading
-    threading.Thread(target=_run, daemon=True).start()
-    return {"status": "updating"}
+    # Detacher l'update du process du service (sinon systemctl stop le tue)
+    # nohup + setsid pour survivre a la mort du process parent
+    log_path = "/var/log/pocsag-update.log"
+    try:
+        sp.Popen(
+            f"nohup setsid bash {script} --force > {log_path} 2>&1 < /dev/null &",
+            shell=True,
+            stdout=sp.DEVNULL,
+            stderr=sp.DEVNULL,
+            start_new_session=True,
+        )
+        return {"status": "updating"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}

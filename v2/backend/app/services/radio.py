@@ -187,10 +187,14 @@ class RadioScanner:
         except asyncio.CancelledError:
             pass
 
-        # Toujours lire stderr (le pipeline meurt vite si rtl_fm echoue)
+        # Tuer le process AVANT de lire stderr, sinon stderr.read() bloque
+        # indefiniment (le process est encore vivant -> jamais d'EOF)
+        await self._kill_processes()
+
+        # Lire stderr (le process est mort -> EOF immediat)
         if self._process and self._process.stderr:
             try:
-                err = await self._process.stderr.read()
+                err = await asyncio.wait_for(self._process.stderr.read(), timeout=2)
                 if err:
                     log.warning("Radio stderr: %s", err.decode("utf-8", errors="replace")[:300])
             except Exception:
@@ -199,12 +203,13 @@ class RadioScanner:
         if self._process and self._process.returncode not in (0, None):
             log.warning("Radio process exited with code %s", self._process.returncode)
 
-        await self._kill_processes()
-
     async def _read_output(self, proc):
         try:
             while self._running and proc.stdout and not proc.stdout.at_eof():
-                line = await proc.stdout.readline()
+                try:
+                    line = await asyncio.wait_for(proc.stdout.readline(), timeout=1)
+                except asyncio.TimeoutError:
+                    continue
                 if not line:
                     break
                 decoded = line.decode("utf-8", errors="replace").strip()

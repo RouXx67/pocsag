@@ -17,22 +17,16 @@ CURRENT_SCAN_FREQ: Optional[str] = None
 
 
 def check_dongle() -> tuple[bool, str]:
-    """Teste si la clé RTL-SDR est détectée via rtl_test."""
+    """Detecte la cle RTL-SDR via lsusb (non-invasif).
+    N'ouvre PAS le device (rtl_test le fait et cree un conflit avec rtl_fm)."""
     try:
-        r = subprocess.run(
-            ["rtl_test", "-t", "-s", "1M"],
-            capture_output=True, timeout=5,
-        )
+        r = subprocess.run(["lsusb"], capture_output=True, timeout=3)
         out = r.stdout.decode("utf-8", errors="replace")
-        err = r.stderr.decode("utf-8", errors="replace")
-        if r.returncode == 0 or "Found" in out or "Found" in err:
-            return True, "Clé RTL-SDR détectée"
-        msg = (err or out or "Aucune clé détectée").strip()[:200]
-        return False, msg
+        if any(x in out for x in ["0bda:2832", "0bda:2838", "RTL2832", "RTL2838", "Realtek"]):
+            return True, "Cle RTL-SDR detectee (lsusb)"
+        return False, "Aucun dongle RTL-SDR detecte (lsusb)"
     except FileNotFoundError:
-        return False, "rtl_test introuvable (rtl-sdr non installé)"
-    except subprocess.TimeoutExpired:
-        return False, "Timeout sur rtl_test (clé occupée ?)"
+        return False, "lsusb introuvable"
     except Exception as e:
         return False, str(e)
 

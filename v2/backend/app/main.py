@@ -128,8 +128,7 @@ async def lifespan(app: FastAPI):
         await db.commit()
 
     radio_scanner = RadioScanner(on_message=_on_message)
-    asyncio.create_task(radio_scanner.start())
-
+    radio_scanner.start()
     yield
 
     if radio_scanner:

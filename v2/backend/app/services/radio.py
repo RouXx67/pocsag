@@ -48,7 +48,10 @@ class RadioScanner:
     def is_running(self) -> bool:
         return self._running
 
-    async def start(self):
+    def start(self):
+        """Synchronous start — creates and stores the asyncio task.
+        Storing the task reference (self._task) is critical so the event
+        loop does NOT garbage-collect it, which would silently kill the scanner."""
         if self._running:
             return
 
@@ -58,7 +61,6 @@ class RadioScanner:
             subprocess.run(["pkill", "-9", "multimon-ng"], capture_output=True, timeout=3)
         except Exception:
             pass
-        await asyncio.sleep(0.5)
 
         ok, msg = check_dongle()
         if not ok:
@@ -68,7 +70,7 @@ class RadioScanner:
             log.info("RTL-SDR dongle OK")
 
         self._running = True
-        self._task = asyncio.create_task(self._loop())
+        self._task = asyncio.get_event_loop().create_task(self._loop())
 
     async def stop(self):
         self._running = False
@@ -82,9 +84,10 @@ class RadioScanner:
 
     async def restart(self):
         await self.stop()
-        await self.start()
+        self.start()
 
     async def _loop(self):
+        global CURRENT_SCAN_FREQ
         while self._running:
             try:
                 async with async_session_factory() as session:
@@ -137,10 +140,8 @@ class RadioScanner:
                     if not self._running:
                         break
 
-                    global CURRENT_SCAN_FREQ
                     CURRENT_SCAN_FREQ = freq
                     log.info("Scanning %s for %ds", freq, scan_interval)
-
                     try:
                         await self._scan_frequency(
                             freq, squelch, gain, sample_rate, output_rate, scan_interval

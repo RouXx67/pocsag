@@ -32,6 +32,8 @@ radio_scanner: RadioScanner | None = None
 async def _on_message(parsed: dict):
     """Callback when a POCSAG line is parsed."""
     try:
+        log.info("Trame decodee: RIC=%s FUNC=%s MSG=%r",
+                 parsed.get("ric"), parsed.get("func"), parsed.get("message"))
         async with async_session_factory() as db:
 
             ric = parsed["ric"]

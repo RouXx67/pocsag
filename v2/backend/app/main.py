@@ -13,6 +13,13 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
 from app.config import settings
+
+logging.basicConfig(
+    level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+log = logging.getLogger("pocsag")
+
 from app.database import async_session_factory, engine
 from app.models import Alias, Base, BlacklistEntry, ConfigEntry, Message
 from app.routers import config as config_router
@@ -23,8 +30,6 @@ from app.services.address import extract_address
 from app.services.geocoding import geocode
 from app.services.notify import send_discord, send_telegram
 from app.services.radio import RadioScanner
-
-log = logging.getLogger("pocsag")
 
 radio_scanner: RadioScanner | None = None
 

@@ -184,7 +184,6 @@ class RadioScanner:
                 stdin=self._rtl_proc.stdout,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
-                text=True,
                 preexec_fn=preexec,
             )
             if self._rtl_proc.stdout:
@@ -196,14 +195,14 @@ class RadioScanner:
         try:
             while self._running:
                 try:
-                    line = await asyncio.wait_for(
+                    raw = await asyncio.wait_for(
                         self._mm_proc.stdout.readline(), timeout=1
                     )
                 except asyncio.TimeoutError:
                     continue
-                if not line:
+                if not raw:
                     break
-                line = line.strip()
+                line = raw.decode("utf-8", errors="replace").strip()
                 if line:
                     parsed = parse_line(line)
                     if parsed and self.on_message:

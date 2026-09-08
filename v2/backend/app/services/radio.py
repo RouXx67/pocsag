@@ -191,12 +191,10 @@ class RadioScanner:
 
         reader = asyncio.create_task(_reader())
 
-        try:
-            await asyncio.wait_for(self._proc.wait(), timeout=duration)
-        except asyncio.TimeoutError:
-            pass
-        except Exception:
-            pass
+        # Attendre duration secondes (lecture concurrente via _reader)
+        # Puis tuer le process. On n'utilise PAS wait_for(proc.wait()) car
+        # si rtl_fm meurt immediatement, wait_for rend la main aussitot.
+        await asyncio.sleep(duration)
 
         reader.cancel()
         try:

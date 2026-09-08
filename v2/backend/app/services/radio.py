@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import subprocess
 from typing import Optional
 
@@ -34,20 +33,18 @@ def _kill_proc(proc):
     if proc is None or proc.returncode is not None:
         return
     try:
-        pgid = os.getpgid(proc.pid)
-        os.killpg(pgid, 15)
+        proc.terminate()
         proc.wait(2)
     except Exception:
         try:
-            os.killpg(pgid, 9)
+            proc.kill()
         except Exception:
             pass
 
 
 class RadioScanner:
     def __init__(self, on_message):
-        self._rtl_proc: Optional[asyncio.subprocess.Process] = None
-        self._mm_proc: Optional[asyncio.subprocess.Process] = None
+        self._proc: Optional[asyncio.subprocess.Process] = None
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self.on_message = on_message
@@ -156,38 +153,20 @@ class RadioScanner:
     async def _scan_frequency(
         self, freq, squelch, gain, sample_rate, output_rate, duration
     ):
-        """Same approach as V1: separate subprocesses, no stderr capture (avoids pipe deadlock)."""
-        preexec = getattr(os, 'setsid', None)
+        """Shell pipe with stderr=DEVNULL to avoid pipe buffer deadlock.
+        (create_subprocess_exec cannot pipe StreamReader between processes.)"""
+        cmd = (
+            f"rtl_fm -f {freq} -M fm -s {sample_rate} -r {output_rate} "
+            f"-E offset -l {squelch} -g {gain} | "
+            f"multimon-ng -t raw -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -f alpha -"
+        )
 
         try:
-            self._rtl_proc = await asyncio.create_subprocess_exec(
-                "rtl_fm",
-                "-f", freq,
-                "-M", "fm",
-                "-s", str(sample_rate),
-                "-r", str(output_rate),
-                "-E", "offset",
-                "-l", str(squelch),
-                "-g", str(gain),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                preexec_fn=preexec,
+            self._proc = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
             )
-            self._mm_proc = await asyncio.create_subprocess_exec(
-                "multimon-ng",
-                "-t", "raw",
-                "-a", "POCSAG512",
-                "-a", "POCSAG1200",
-                "-a", "POCSAG2400",
-                "-f", "alpha",
-                "-",
-                stdin=self._rtl_proc.stdout,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                preexec_fn=preexec,
-            )
-            if self._rtl_proc.stdout:
-                self._rtl_proc.stdout.close()
         except Exception as e:
             log.error("[Scanner] Subprocess start failed: %s", e)
             return
@@ -196,7 +175,7 @@ class RadioScanner:
             while self._running:
                 try:
                     raw = await asyncio.wait_for(
-                        self._mm_proc.stdout.readline(), timeout=1
+                        self._proc.stdout.readline(), timeout=1
                     )
                 except asyncio.TimeoutError:
                     continue
@@ -214,7 +193,5 @@ class RadioScanner:
         await asyncio.sleep(0.3)
 
     def _kill_all(self):
-        _kill_proc(self._mm_proc)
-        _kill_proc(self._rtl_proc)
-        self._mm_proc = None
-        self._rtl_proc = None
+        _kill_proc(self._proc)
+        self._proc = None

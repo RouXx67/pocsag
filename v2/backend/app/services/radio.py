@@ -74,7 +74,7 @@ class RadioScanner:
                 await self._task
             except asyncio.CancelledError:
                 pass
-await self._kill_all()
+        await self._kill_all()
 
     async def restart(self):
         await self.stop()
@@ -153,8 +153,7 @@ await self._kill_all()
     async def _scan_frequency(
         self, freq, squelch, gain, sample_rate, output_rate, duration
     ):
-        """Shell pipe with stderr=DEVNULL to avoid pipe buffer deadlock.
-        (create_subprocess_exec cannot pipe StreamReader between processes.)"""
+        """Shell pipe with stderr=DEVNULL. Waits either for process exit or duration."""
         cmd = (
             f"rtl_fm -f {freq} -M fm -s {sample_rate} -r {output_rate} "
             f"-E offset -l {squelch} -g {gain} | "
@@ -171,23 +170,43 @@ await self._kill_all()
             log.error("[Scanner] Subprocess start failed: %s", e)
             return
 
+        async def _reader():
+            try:
+                while self._running:
+                    try:
+                        raw = await asyncio.wait_for(
+                            self._proc.stdout.readline(), timeout=1
+                        )
+                    except asyncio.TimeoutError:
+                        continue
+                    if not raw:
+                        break
+                    line = raw.decode("utf-8", errors="replace").strip()
+                    if line:
+                        parsed = parse_line(line)
+                        if parsed and self.on_message:
+                            asyncio.create_task(self.on_message(parsed))
+            except Exception:
+                pass
+
+        reader = asyncio.create_task(_reader())
+
         try:
-            while self._running:
-                try:
-                    raw = await asyncio.wait_for(
-                        self._proc.stdout.readline(), timeout=1
-                    )
-                except asyncio.TimeoutError:
-                    continue
-                if not raw:
-                    break
-                line = raw.decode("utf-8", errors="replace").strip()
-                if line:
-                    parsed = parse_line(line)
-                    if parsed and self.on_message:
-                        asyncio.create_task(self.on_message(parsed))
+            await asyncio.wait_for(self._proc.wait(), timeout=duration)
+        except asyncio.TimeoutError:
+            pass
         except Exception:
             pass
+
+        reader.cancel()
+        try:
+            await reader
+        except asyncio.CancelledError:
+            pass
+
+        rc = self._proc.returncode if self._proc else None
+        if rc is not None and rc != 0:
+            log.warning("[Scanner] Process exited with code %s on %s", rc, freq)
 
         await self._kill_all()
         await asyncio.sleep(0.3)

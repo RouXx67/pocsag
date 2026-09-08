@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import subprocess
 from typing import Optional
 
@@ -17,23 +18,36 @@ CURRENT_SCAN_FREQ: Optional[str] = None
 
 
 def check_dongle() -> tuple[bool, str]:
-    """Detecte la cle RTL-SDR via lsusb (non-invasif).
-    N'ouvre PAS le device (rtl_test le fait et cree un conflit avec rtl_fm)."""
     try:
         r = subprocess.run(["lsusb"], capture_output=True, timeout=3)
         out = r.stdout.decode("utf-8", errors="replace")
         if any(x in out for x in ["0bda:2832", "0bda:2838", "RTL2832", "RTL2838", "Realtek"]):
             return True, "Cle RTL-SDR detectee (lsusb)"
-        return False, "Aucun dongle RTL-SDR detecte (lsusb)"
+        return False, "Aucun dongle detecte (lsusb)"
     except FileNotFoundError:
         return False, "lsusb introuvable"
     except Exception as e:
         return False, str(e)
 
 
+def _kill_proc(proc):
+    if proc is None or proc.returncode is not None:
+        return
+    try:
+        pgid = os.getpgid(proc.pid)
+        os.killpg(pgid, 15)
+        proc.wait(2)
+    except Exception:
+        try:
+            os.killpg(pgid, 9)
+        except Exception:
+            pass
+
+
 class RadioScanner:
     def __init__(self, on_message):
-        self._process: Optional[asyncio.subprocess.Process] = None
+        self._rtl_proc: Optional[asyncio.subprocess.Process] = None
+        self._mm_proc: Optional[asyncio.subprocess.Process] = None
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self.on_message = on_message
@@ -43,26 +57,15 @@ class RadioScanner:
         return self._running
 
     def start(self):
-        """Synchronous start — creates and stores the asyncio task.
-        Storing the task reference (self._task) is critical so the event
-        loop does NOT garbage-collect it, which would silently kill the scanner."""
         if self._running:
             return
-
-        # Tuer tout processus rtl_fm résiduel avant de commencer
-        try:
-            subprocess.run(["pkill", "-9", "rtl_fm"], capture_output=True, timeout=3)
-            subprocess.run(["pkill", "-9", "multimon-ng"], capture_output=True, timeout=3)
-        except Exception:
-            pass
-
+        subprocess.run(["pkill", "-9", "rtl_fm"], capture_output=True, timeout=3)
+        subprocess.run(["pkill", "-9", "multimon-ng"], capture_output=True, timeout=3)
         ok, msg = check_dongle()
         if not ok:
-            log.warning("RTL-SDR dongle check failed: %s", msg)
-            log.warning("Scanner will retry on next loop")
+            log.warning("Dongle: %s", msg)
         else:
-            log.info("RTL-SDR dongle OK")
-
+            log.info("Dongle OK")
         self._running = True
         self._task = asyncio.get_event_loop().create_task(self._loop())
 
@@ -74,7 +77,7 @@ class RadioScanner:
                 await self._task
             except asyncio.CancelledError:
                 pass
-        await self._kill_processes()
+        self._kill_all()
 
     async def restart(self):
         await self.stop()
@@ -135,94 +138,84 @@ class RadioScanner:
                         break
 
                     CURRENT_SCAN_FREQ = freq
-                    log.info("Scanning %s for %ds", freq, scan_interval)
+                    log.info("[Scanner] %s (%ds)", freq, scan_interval)
+
                     try:
                         await self._scan_frequency(
                             freq, squelch, gain, sample_rate, output_rate, scan_interval
                         )
                     except Exception as e:
-                        log.error("Error scanning %s: %s", freq, e)
-
-                    await asyncio.sleep(1)
+                        log.error("[Scanner] Error %s: %s", freq, e)
 
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                log.error("Radio loop error: %s", e)
+                log.error("[Scanner] Loop: %s", e)
                 await asyncio.sleep(2)
 
     async def _scan_frequency(
         self, freq, squelch, gain, sample_rate, output_rate, duration
     ):
-        cmd = (
-            f"rtl_fm -f {freq} -M fm -s {sample_rate} -r {output_rate} "
-            f"-E offset -l {squelch} -g {gain} | "
-            f"multimon-ng -t raw -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -f alpha -"
-        )
-
-        self._process = await asyncio.create_subprocess_shell(
-            cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-
-        read_task = asyncio.create_task(self._read_output(self._process))
+        """Same approach as V1: separate subprocesses, no stderr capture (avoids pipe deadlock)."""
+        preexec = getattr(os, 'setsid', None)
 
         try:
-            await asyncio.wait_for(self._process.wait(), timeout=duration)
-        except asyncio.TimeoutError:
-            pass
-        except Exception:
-            pass
+            self._rtl_proc = await asyncio.create_subprocess_exec(
+                "rtl_fm",
+                "-f", freq,
+                "-M", "fm",
+                "-s", str(sample_rate),
+                "-r", str(output_rate),
+                "-E", "offset",
+                "-l", str(squelch),
+                "-g", str(gain),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                preexec_fn=preexec,
+            )
+            self._mm_proc = await asyncio.create_subprocess_exec(
+                "multimon-ng",
+                "-t", "raw",
+                "-a", "POCSAG512",
+                "-a", "POCSAG1200",
+                "-a", "POCSAG2400",
+                "-f", "alpha",
+                "-",
+                stdin=self._rtl_proc.stdout,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                preexec_fn=preexec,
+            )
+            if self._rtl_proc.stdout:
+                self._rtl_proc.stdout.close()
+        except Exception as e:
+            log.error("[Scanner] Subprocess start failed: %s", e)
+            return
 
-        read_task.cancel()
         try:
-            await read_task
-        except asyncio.CancelledError:
-            pass
-
-        # Tuer le process AVANT de lire stderr, sinon stderr.read() bloque
-        # indefiniment (le process est encore vivant -> jamais d'EOF)
-        await self._kill_processes()
-
-        # Lire stderr (le process est mort -> EOF immediat)
-        if self._process and self._process.stderr:
-            try:
-                err = await asyncio.wait_for(self._process.stderr.read(), timeout=2)
-                if err:
-                    log.warning("Radio stderr: %s", err.decode("utf-8", errors="replace")[:300])
-            except Exception:
-                pass
-
-        if self._process and self._process.returncode not in (0, None):
-            log.warning("Radio process exited with code %s", self._process.returncode)
-
-    async def _read_output(self, proc):
-        try:
-            while self._running and proc.stdout and not proc.stdout.at_eof():
+            while self._running:
                 try:
-                    line = await asyncio.wait_for(proc.stdout.readline(), timeout=1)
+                    line = await asyncio.wait_for(
+                        self._mm_proc.stdout.readline(), timeout=1
+                    )
                 except asyncio.TimeoutError:
                     continue
                 if not line:
                     break
-                decoded = line.decode("utf-8", errors="replace").strip()
-                if decoded:
-                    parsed = parse_line(decoded)
+                line = line.strip()
+                if line:
+                    parsed = parse_line(line)
                     if parsed and self.on_message:
-                        asyncio.ensure_future(self.on_message(parsed))
+                        asyncio.create_task(self.on_message(parsed))
         except Exception:
             pass
 
-    async def _kill_processes(self):
-        proc = self._process
-        if proc and proc.returncode is None:
-            try:
-                proc.terminate()
-                try:
-                    await asyncio.wait_for(proc.wait(), timeout=2)
-                except asyncio.TimeoutError:
-                    proc.kill()
-            except Exception:
-                pass
-        self._process = None
+        self._kill_all()
+        await asyncio.sleep(0.3)
+
+    def _kill_all(self):
+        _kill_proc(self._mm_proc)
+        _kill_proc(self._rtl_proc)
+        self._mm_proc = None
+        self._rtl_proc = None

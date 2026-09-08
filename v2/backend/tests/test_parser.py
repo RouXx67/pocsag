@@ -42,6 +42,7 @@ def test_empty_line():
 
 def test_junk_line():
     assert parse_line("some random text") is None
+    assert parse_line("POCSAG1200: garbage data") is None
 
 
 def test_multiple_spaces():
@@ -50,3 +51,61 @@ def test_multiple_spaces():
     assert result is not None
     assert result["ric"] == "0123456"
     assert result["message"] == "TEST  MESSAGE"
+
+
+def test_real_world_sap():
+    line = "POCSAG1200: Address: 0524823 Function: 1 Alpha: SAP VERT A DOMICILE VSAV001 RUE PRINCIPALE STRASBOURG"
+    result = parse_line(line)
+    assert result is not None
+    assert result["ric"] == "0524823"
+    assert "SAP" in result["message"]
+    assert "STRASBOURG" in result["message"]
+
+
+def test_real_world_feu():
+    line = "POCSAG1200: Address: 0314792 Function: 1 Alpha: FEU DE CHAUME FPT001 COLMAR 12 RUE DES FLEURS"
+    result = parse_line(line)
+    assert result is not None
+    assert result["ric"] == "0314792"
+    assert "FEU" in result["message"]
+    assert "COLMAR" in result["message"]
+
+
+def test_real_world_avp():
+    line = "POCSAG2400: Address: 0712356 Function: 0 Alpha: AVP VL CONTRE ARBRE VSAV003 SELESTAT D108"
+    result = parse_line(line)
+    assert result is not None
+    assert result["ric"] == "0712356"
+    assert "AVP" in result["message"]
+
+
+def test_real_world_no_message():
+    line = "POCSAG512: Address: 0099999 Function: 1"
+    result = parse_line(line)
+    assert result is not None
+    assert result["ric"] == "0099999"
+    assert result["message"] == ""
+
+
+def test_unicode_accents():
+    line = "POCSAG1200: Address: 0123456 Function: 1 Alpha: FEU DE CHAUME DESINCARCERATION STRASBOURG"
+    result = parse_line(line)
+    assert result is not None
+    assert "DESINCARCERATION" in result["message"]
+
+
+def test_newline_in_message():
+    line = "POCSAG1200: Address: 0123456 Function: 1 Alpha: TEST\nLINE2"
+    result = parse_line(line)
+    assert result is not None
+    assert result["ric"] == "0123456"
+    assert "TEST" in result["message"]
+
+
+def test_very_long_message():
+    msg = "A" * 500
+    line = f"POCSAG1200: Address: 0123456 Function: 1 Alpha: {msg}"
+    result= parse_line(line)
+    assert result is not None
+    assert result["ric"] == "0123456"
+    assert len(result["message"]) == 500

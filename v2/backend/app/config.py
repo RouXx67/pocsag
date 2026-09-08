@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     app_name: str = "POCSAG Monitor v2"
-    version: str = "2.2.2"
+    version: str = "2.2.3"
 
     host: str = "127.0.0.1"
     port: int = 8080

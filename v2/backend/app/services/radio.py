@@ -29,12 +29,12 @@ def check_dongle() -> tuple[bool, str]:
         return False, str(e)
 
 
-def _kill_proc(proc):
+async def _kill_proc(proc):
     if proc is None or proc.returncode is not None:
         return
     try:
         proc.terminate()
-        proc.wait(2)
+        await asyncio.wait_for(proc.wait(), timeout=2)
     except Exception:
         try:
             proc.kill()
@@ -74,7 +74,7 @@ class RadioScanner:
                 await self._task
             except asyncio.CancelledError:
                 pass
-        self._kill_all()
+await self._kill_all()
 
     async def restart(self):
         await self.stop()
@@ -189,9 +189,9 @@ class RadioScanner:
         except Exception:
             pass
 
-        self._kill_all()
+        await self._kill_all()
         await asyncio.sleep(0.3)
 
-    def _kill_all(self):
-        _kill_proc(self._proc)
+    async def _kill_all(self):
+        await _kill_proc(self._proc)
         self._proc = None

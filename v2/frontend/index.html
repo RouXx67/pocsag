@@ -103,7 +103,7 @@ header{flex-direction:column;align-items:flex-start;gap:12px;padding:15px}
 <div class="container">
 <header>
 <div class="header-top">
-<h1><span class="live-dot" id="liveDot"></span> 📡 POCSAG Monitor <span id="appVersion" class="version-badge">v2.4.0</span> <span id="updateFlag" style="display:none;" class="update-flag" onclick="runUpdate()">🚀 MAJ dispo</span></h1>
+<h1><span class="live-dot" id="liveDot"></span> 📡 POCSAG Monitor <span id="appVersion" class="version-badge">v2.5.0</span> <span id="updateFlag" style="display:none;" class="update-flag" onclick="runUpdate()">🚀 MAJ dispo</span></h1>
 <button class="menu-toggle" onclick="toggleMenu()">☰</button>
 </div>
 <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -160,6 +160,7 @@ header{flex-direction:column;align-items:flex-start;gap:12px;padding:15px}
 <div><label style="font-weight:bold;display:block;margin-bottom:5px;">Sample Rate :</label><input type="text" id="sampleRateInput"></div>
 <div><label style="font-weight:bold;display:block;margin-bottom:5px;">Output Rate :</label><input type="text" id="outputRateInput"></div>
         <div><label style="font-weight:bold;display:block;margin-bottom:5px;">Bias-T :</label><input type="checkbox" id="biasTInput"> Activer l'alimentation antenne</div>
+        <div><label style="font-weight:bold;display:block;margin-bottom:5px;">PPM (correction fréquence) :</label><input type="number" id="ppmInput" min="0" max="3000" step="1" placeholder="0"></div>
 </div>
 <button onclick="saveSdrSettings()" style="margin-top:15px;">💾 Enregistrer</button>
 <span id="freqStatus" class="status-msg"></span>
@@ -259,6 +260,7 @@ if(cfg.gain)document.getElementById("gainInput").value=cfg.gain;
 if(cfg.sample_rate)document.getElementById("sampleRateInput").value=cfg.sample_rate;
 if(cfg.output_rate)document.getElementById("outputRateInput").value=cfg.output_rate;
 if(cfg.bias_t!==undefined)document.getElementById("biasTInput").checked=cfg.bias_t;
+if(cfg.ppm!==undefined)document.getElementById("ppmInput").value=cfg.ppm;
 if(cfg.discord_webhook)document.getElementById("webhookUrl").value=cfg.discord_webhook;
 if(cfg.telegram_bot_token)document.getElementById("tgToken").value=cfg.telegram_bot_token;
 if(cfg.telegram_chat_id)document.getElementById("tgChatId").value=cfg.telegram_chat_id;
@@ -369,6 +371,7 @@ gain:document.getElementById("gainInput").value||"19.2",
 sample_rate:document.getElementById("sampleRateInput").value||"22050",
 output_rate:document.getElementById("outputRateInput").value||"22050",
 bias_t:document.getElementById("biasTInput").checked,
+  ppm: parseInt(document.getElementById("ppmInput").value)||0,
 };
 await api("/api/config",{method:"POST",body:JSON.stringify(body)});
 showStatus("freqStatus","✅ Enregistré","success")

@@ -118,6 +118,7 @@ async def lifespan(app: FastAPI):
             ("sample_rate", "22050"),
             ("output_rate", "22050"),
             ("bias_t", "false"),
+            ("ppm", "0"),
         ]:
             existing = await db.get(ConfigEntry, key)
             if not existing:

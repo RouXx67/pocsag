@@ -63,6 +63,7 @@ class ConfigOut(BaseModel):
     sample_rate: str = "22050"
     output_rate: str = "22050"
     bias_t: bool = False
+    ppm: int = 0
 
 
 class ConfigUpdate(BaseModel):
@@ -78,6 +79,7 @@ class ConfigUpdate(BaseModel):
     sample_rate: Optional[str] = None
     output_rate: Optional[str] = None
     bias_t: Optional[bool] = None
+    ppm: Optional[int] = None
 
 
 class LoginRequest(BaseModel):

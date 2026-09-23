@@ -135,11 +135,12 @@ class RadioScanner:
                 sample_rate = "22050"
                 output_rate = "22050"
                 bias_t = False
+                ppm = 0
                 rows = await session.execute(
                     select(ConfigEntry).where(
                         ConfigEntry.key.in_([
                             "frequencies", "scan_interval", "squelch",
-                            "gain", "sample_rate", "output_rate", "bias_t",
+                            "gain", "sample_rate", "output_rate", "bias_t", "ppm",
                         ])
                     )
                 )
@@ -164,6 +165,11 @@ class RadioScanner:
                         output_rate = row.value
                     elif row.key == "bias_t":
                         bias_t = row.value.lower() in ("true", "yes", "1")
+                    elif row.key == "ppm":
+                        try:
+                            ppm = int(row.value)
+                        except ValueError:
+                            ppm = 0
             # Extraire la première fréquence (ou utiliser la default)
             raw_freqs = [f.strip() for f in freqs_str.split(",") if f.strip()] if freqs_str else []
             frequency = raw_freqs[0] if raw_freqs else settings.default_frequencies[0]
@@ -175,6 +181,7 @@ class RadioScanner:
                 "sample_rate": sample_rate,
                 "output_rate": output_rate,
                 "bias_t": bias_t,
+                "ppm": ppm,
             }
 
         return self._sync_call(_fetch()) or {
@@ -199,6 +206,7 @@ class RadioScanner:
                 sample_rate = cfg["sample_rate"]
                 output_rate = cfg["output_rate"]
                 bias_t = cfg["bias_t"]
+                ppm = int(cfg.get("ppm", 0))
 
                 with _scan_freq_lock:
                     CURRENT_SCAN_FREQ = frequency
@@ -212,6 +220,8 @@ class RadioScanner:
                 if bias_t:
                     rtl_args.append("-T")
                 rtl_args.extend(["-f", frequency])
+                if ppm != 0:
+                    rtl_args.extend(["-p", str(ppm)])
                 rtl_args.extend(["-g", gain])
                 rtl_args.extend(["-s", sample_rate])
                 if squelch:

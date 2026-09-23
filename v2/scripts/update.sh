@@ -64,6 +64,7 @@ cp -r "$SRC_DIR/v2/backend/app/"* "$V2_DIR/backend/app/"
 cp -r "$SRC_DIR/v2/frontend/"* "$V2_DIR/frontend/"
 cp "$SRC_DIR/v2/config/pocsag.service" "$V2_DIR/config/pocsag.service"
 cp "$SRC_DIR/v2/config/nginx.conf" "$V2_DIR/config/nginx.conf"
+cp "$SRC_DIR/VERSION" "$V2_DIR/VERSION" 2>/dev/null || true
 
 info "Dependances Python..."
 [ -f "$V2_DIR/.venv/bin/pip" ] && "$V2_DIR/.venv/bin/pip" install -r "$SRC_DIR/v2/backend/requirements.txt" --quiet --upgrade

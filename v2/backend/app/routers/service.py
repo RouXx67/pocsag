@@ -93,6 +93,29 @@ async def test_discord():
     return {"success": ok, "message": msg}
 
 
+def _parse_version(version_str: str) -> tuple[int, ...]:
+    """Convertit une chaîne de version 'X.Y.Z' en tuple d'entiers.
+    Gère les numéros, supprime les espaces, supprime un préfixe 'v'.
+    Retourne un tuple vide si la version n'est pas parseable."""
+    if not version_str:
+        return ()
+    # Supprime 'v' devant, et éventuel suffixe après '-'
+    clean = version_str.lstrip('v').strip()
+    # Ignore tout ce qui suit un tiret (par ex. 2.4.0-alpha)
+    dash_idx = clean.find('-')
+    if dash_idx >= 0:
+        clean = clean[:dash_idx]
+    parts = clean.split('.')
+    parsed = []
+    for p in parts:
+        try:
+            parsed.append(int(p))
+        except ValueError:
+            # Si un segment n'est pas un entier, on s'arrête là
+            break
+    return tuple(parsed)
+
+
 @router.get("/api/update/check")
 async def check_update():
     try:
@@ -106,9 +129,14 @@ async def check_update():
                 "https://raw.githubusercontent.com/RouXx67/pocsag/master/VERSION",
                 timeout=3,
             )
-        remote = r.text.strip() if r.status_code == 200 else settings.version
-        available = settings.version != remote and len(remote) > 0
-        return {"update_available": available, "local": settings.version, "remote": remote}
+        remote_raw = r.text.strip() if r.status_code == 200 else ""
+        remote_parsed = _parse_version(remote_raw)
+        local_parsed = _parse_version(settings.version)
+        
+        # Une mise à jour est disponible seulement si la version distante est
+        # sémantiquement supérieure à la locale, et si les deux sont parseables.
+        available = bool(remote_parsed and local_parsed and remote_parsed > local_parsed)
+        return {"update_available": available, "local": settings.version, "remote": remote_raw}
     except Exception as e:
         return {"update_available": False, "error": str(e)}
 

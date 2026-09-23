@@ -153,12 +153,13 @@ header{flex-direction:column;align-items:flex-start;gap:12px;padding:15px}
 <div class="card">
 <h2>📻 Fréquences & Paramètres</h2>
 <div class="service-grid">
-<div><label style="font-weight:bold;display:block;margin-bottom:5px;">Fréquences :</label><input type="text" id="freqInput" placeholder="85.955M,173512.5k"></div>
-<div><label style="font-weight:bold;display:block;margin-bottom:5px;">Scan interval (s) :</label><input type="number" id="scanIntervalInput" min="5" max="300"></div>
+<div><label style="font-weight:bold;display:block;margin-bottom:5px;">Fréquence d'écoute :</label><input type="text" id="freqInput" placeholder="85.955M"></div>
+        <div style="display:none;"><label style="font-weight:bold;display:block;margin-bottom:5px;">Scan interval (s) :</label><input type="number" id="scanIntervalInput" min="5" max="300"></div>
 <div><label style="font-weight:bold;display:block;margin-bottom:5px;">Squelch :</label><input type="number" id="squelchInput" min="0" max="100"></div>
 <div><label style="font-weight:bold;display:block;margin-bottom:5px;">Gain :</label><input type="text" id="gainInput"></div>
 <div><label style="font-weight:bold;display:block;margin-bottom:5px;">Sample Rate :</label><input type="text" id="sampleRateInput"></div>
 <div><label style="font-weight:bold;display:block;margin-bottom:5px;">Output Rate :</label><input type="text" id="outputRateInput"></div>
+        <div><label style="font-weight:bold;display:block;margin-bottom:5px;">Bias-T :</label><input type="checkbox" id="biasTInput"> Activer l'alimentation antenne</div>
 </div>
 <button onclick="saveSdrSettings()" style="margin-top:15px;">💾 Enregistrer</button>
 <span id="freqStatus" class="status-msg"></span>
@@ -235,7 +236,7 @@ const r=await api("/api/radio/dongle");
 const dot=document.getElementById("liveDot");
 if(r.detected){dot.className="live-dot on"}else{dot.className="live-dot off"}
 const s=await api("/api/service/status");
-if(s.current_freq){document.getElementById("currentFreq").textContent=s.current_freq;document.getElementById("scanStatus").textContent="● scan"}
+if(s.current_freq){document.getElementById("currentFreq").textContent=s.current_freq;document.getElementById("scanStatus").textContent="● écoute"}
 }
 async function loadVersion(){const v=await api("/api/version");document.getElementById("appVersion").textContent="v"+(v.version||"?")}
 async function loadConfig(){
@@ -246,6 +247,7 @@ if(cfg.squelch!==undefined)document.getElementById("squelchInput").value=cfg.squ
 if(cfg.gain)document.getElementById("gainInput").value=cfg.gain;
 if(cfg.sample_rate)document.getElementById("sampleRateInput").value=cfg.sample_rate;
 if(cfg.output_rate)document.getElementById("outputRateInput").value=cfg.output_rate;
+if(cfg.bias_t!==undefined)document.getElementById("biasTInput").checked=cfg.bias_t;
 if(cfg.discord_webhook)document.getElementById("webhookUrl").value=cfg.discord_webhook;
 if(cfg.telegram_bot_token)document.getElementById("tgToken").value=cfg.telegram_bot_token;
 if(cfg.telegram_chat_id)document.getElementById("tgChatId").value=cfg.telegram_chat_id;
@@ -353,8 +355,9 @@ frequencies:document.getElementById("freqInput").value.split(",").map(s=>s.trim(
 scan_interval:isNaN(sv)?30:Math.max(5,sv),
 squelch:isNaN(sq)?0:sq,
 gain:document.getElementById("gainInput").value||"19.2",
-sample_rate:document.getElementById("sampleRateInput").value||"176400",
+sample_rate:document.getElementById("sampleRateInput").value||"22050",
 output_rate:document.getElementById("outputRateInput").value||"22050",
+bias_t:document.getElementById("biasTInput").checked,
 };
 await api("/api/config",{method:"POST",body:JSON.stringify(body)});
 showStatus("freqStatus","✅ Enregistré","success")

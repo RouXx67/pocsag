@@ -60,8 +60,9 @@ class ConfigOut(BaseModel):
     scan_interval: int = 30
     squelch: int = 0
     gain: str = "19.2"
-    sample_rate: str = "176400"
+    sample_rate: str = "22050"
     output_rate: str = "22050"
+    bias_t: bool = False
 
 
 class ConfigUpdate(BaseModel):
@@ -76,6 +77,7 @@ class ConfigUpdate(BaseModel):
     gain: Optional[str] = None
     sample_rate: Optional[str] = None
     output_rate: Optional[str] = None
+    bias_t: Optional[bool] = None
 
 
 class LoginRequest(BaseModel):

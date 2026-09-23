@@ -12,7 +12,7 @@ from typing import Optional
 from app.config import settings
 from app.database import async_session_factory
 from app.models import ConfigEntry
-from app.services.parser import parse_line
+from app.services.parser import POCSAGParser, parse_line
 from sqlalchemy import select
 
 log = logging.getLogger("pocsag.radio")
@@ -116,13 +116,14 @@ class RadioScanner:
                 scan_interval = settings.default_scan_interval
                 squelch = 0
                 gain = "19.2"
-                sample_rate = "176400"
+                sample_rate = "22050"
                 output_rate = "22050"
+                bias_t = False
                 rows = await session.execute(
                     select(ConfigEntry).where(
                         ConfigEntry.key.in_([
                             "frequencies", "scan_interval", "squelch",
-                            "gain", "sample_rate", "output_rate",
+                            "gain", "sample_rate", "output_rate", "bias_t",
                         ])
                     )
                 )
@@ -145,127 +146,135 @@ class RadioScanner:
                         sample_rate = row.value
                     elif row.key == "output_rate":
                         output_rate = row.value
+                    elif row.key == "bias_t":
+                        bias_t = row.value.lower() in ("true", "yes", "1")
+            # Extraire la première fréquence (ou utiliser la default)
+            raw_freqs = [f.strip() for f in freqs_str.split(",") if f.strip()] if freqs_str else []
+            frequency = raw_freqs[0] if raw_freqs else settings.default_frequencies[0]
             return {
-                "freqs_str": freqs_str,
+                "frequency": frequency,
                 "scan_interval": scan_interval,
                 "squelch": squelch,
                 "gain": gain,
                 "sample_rate": sample_rate,
                 "output_rate": output_rate,
+                "bias_t": bias_t,
             }
 
         return self._sync_call(_fetch()) or {
-            "freqs_str": "",
+            "frequency": settings.default_frequencies[0],
             "scan_interval": settings.default_scan_interval,
             "squelch": 0,
             "gain": "19.2",
-            "sample_rate": "176400",
+            "sample_rate": "22050",
             "output_rate": "22050",
+            "bias_t": False,
         }
 
     def _run(self):
         global CURRENT_SCAN_FREQ
+        log.info("[Scanner] Démarrage (écoute continue fréquence unique)")
         while not self._stop.is_set():
             try:
                 cfg = self._get_config()
-                freqs_str = cfg["freqs_str"]
-                scan_interval = cfg["scan_interval"]
+                frequency = cfg["frequency"]
                 squelch = cfg["squelch"]
                 gain = cfg["gain"]
                 sample_rate = cfg["sample_rate"]
                 output_rate = cfg["output_rate"]
+                bias_t = cfg["bias_t"]
 
-                freqs = (
-                    [f.strip() for f in freqs_str.split(",") if f.strip()]
-                    if freqs_str
-                    else settings.default_frequencies
-                )
-
-                if not freqs:
-                    time.sleep(5)
-                    continue
+                with _scan_freq_lock:
+                    CURRENT_SCAN_FREQ = frequency
+                log.info("[Scanner] Fréquence d'écoute : %s", frequency)
 
                 preexec = getattr(os, 'setsid', None)
                 can_killpg = preexec is not None
 
-                for freq in freqs:
-                    if self._stop.is_set():
-                        break
+                # Construction de la commande rtl_fm (style F4JTV)
+                rtl_args = ["rtl_fm"]
+                if bias_t:
+                    rtl_args.append("-T")
+                rtl_args.extend(["-f", frequency])
+                rtl_args.extend(["-g", gain])
+                rtl_args.extend(["-s", sample_rate])
+                if squelch:
+                    rtl_args.extend(["-l", str(squelch)])
+                rtl_args.append("-")  # stdout
 
-                    with _scan_freq_lock:
-                        CURRENT_SCAN_FREQ = freq
-                    log.info("[Scanner] %s (%ds)", freq, scan_interval)
+                # Construction de la commande multimon-ng (style F4JTV)
+                mm_args = [
+                    "multimon-ng",
+                    "-t", "raw",
+                    "-a", "POCSAG512",
+                    "-a", "POCSAG1200",
+                    "-a", "POCSAG2400",
+                    "-",
+                ]
 
-                    rtl_args = [
-                        "rtl_fm",
-                        "-f", freq,
-                        "-M", "fm",
-                        "-s", str(sample_rate),
-                        "-r", str(output_rate),
-                        "-E", "offset",
-                        "-l", str(squelch),
-                        "-g", str(gain),
-                    ]
-                    mm_args = [
-                        "multimon-ng",
-                        "-t", "raw",
-                        "-a", "POCSAG512",
-                        "-a", "POCSAG1200",
-                        "-a", "POCSAG2400",
-                        "-f", "alpha",
-                        "-",
-                    ]
+                try:
+                    log.debug("[Scanner] Commande rtl_fm : %s", " ".join(rtl_args))
+                    log.debug("[Scanner] Commande multimon-ng : %s", " ".join(mm_args))
+                    rtl_proc = subprocess.Popen(
+                        rtl_args,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.DEVNULL,
+                        preexec_fn=preexec,
+                        text=False,
+                    )
+                    mm_proc = subprocess.Popen(
+                        mm_args,
+                        stdin=rtl_proc.stdout,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.DEVNULL,
+                        text=True,
+                        preexec_fn=preexec,
+                    )
+                    rtl_proc.stdout.close()  # permet que rtl_fm voit SIGPIPE si multimon-ng meurt
+                except Exception as e:
+                    log.error("[Scanner] Démmarrage pipeline: %s", e)
+                    time.sleep(2)
+                    continue
 
+                parser = POCSAGParser()
+                stop_reader = threading.Event()
+
+                def _read_output():
                     try:
-                        rtl_proc = subprocess.Popen(
-                            rtl_args,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL,
-                            preexec_fn=preexec,
-                        )
-                        mm_proc = subprocess.Popen(
-                            mm_args,
-                            stdin=rtl_proc.stdout,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL,
-                            text=True,
-                            preexec_fn=preexec,
-                        )
-                        rtl_proc.stdout.close()
+                        for line in iter(mm_proc.stdout.readline, ''):
+                            if stop_reader.is_set():
+                                break
+                            line = line.rstrip("\n")
+                            if not line:
+                                continue
+                            # Utiliser le parser stateful
+                            parsed = parser.feed(line)
+                            if parsed:
+                                self._call_on_message(parsed)
                     except Exception as e:
-                        log.error("[Scanner] Demarrage: %s", e)
-                        time.sleep(2)
-                        continue
+                        log.error("[Scanner] Lecture sortie: %s", e)
+                    finally:
+                        # À la fin du flux (multimon-ng arrêté), forcer un flush des messages en attente
+                        pending = parser.flush()
+                        if pending:
+                            self._call_on_message(pending)
 
-                    stop_reader = threading.Event()
+                reader = threading.Thread(target=_read_output, daemon=True)
+                reader.start()
 
-                    def _read_output():
-                        try:
-                            for line in iter(mm_proc.stdout.readline, ''):
-                                if stop_reader.is_set():
-                                    break
-                                line = line.strip()
-                                if line:
-                                    parsed = parse_line(line)
-                                    if parsed:
-                                        self._call_on_message(parsed)
-                        except Exception:
-                            pass
+                # Surveillance continue jusqu'à arrêt ou mort du pipeline
+                while not self._stop.is_set():
+                    if mm_proc.poll() is not None:
+                        log.warning("[Scanner] multimon-ng terminé avec code %s, redémarrage...",
+                                    mm_proc.returncode)
+                        break
+                    time.sleep(1)
 
-                    reader = threading.Thread(target=_read_output, daemon=True)
-                    reader.start()
-
-                    # Ecoute pendant scan_interval (ou jusqu'a l'arret)
-                    start_t = time.time()
-                    while time.time() - start_t < scan_interval:
-                        if self._stop.is_set() or mm_proc.poll() is not None:
-                            break
-                        time.sleep(0.5)
-
-                    stop_reader.set()
-                    _kill_process_group(mm_proc, can_killpg)
-                    _kill_process_group(rtl_proc, can_killpg)
-                    time.sleep(0.5)
+                # Nettoyage
+                stop_reader.set()
+                _kill_process_group(mm_proc, can_killpg)
+                _kill_process_group(rtl_proc, can_killpg)
+                time.sleep(1)  # Anti-lock USB
 
             except Exception as e:
                 log.error("[Scanner] Boucle: %s", e)

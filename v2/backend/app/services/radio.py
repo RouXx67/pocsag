@@ -7,6 +7,8 @@ import signal
 import subprocess
 import threading
 import time
+from collections import deque
+from datetime import datetime
 from typing import Optional
 
 from app.config import settings
@@ -19,6 +21,20 @@ log = logging.getLogger("pocsag.radio")
 
 CURRENT_SCAN_FREQ: Optional[str] = None
 _scan_freq_lock = threading.Lock()
+
+# Buffer circulaire pour logs multimon-ng / rtl_fm
+MULTIMON_LOG: deque[dict[str, str]] = deque(maxlen=500)
+_log_buffer_lock = threading.Lock()
+
+
+def _add_to_log_buffer(source: str, line: str):
+    """Ajoute une ligne au buffer de logs avec timestamp."""
+    with _log_buffer_lock:
+        MULTIMON_LOG.append({
+            "ts": datetime.now().isoformat(timespec="seconds"),
+            "source": source,
+            "line": line.rstrip("\n"),
+        })
 
 
 def check_dongle() -> tuple[bool, str]:
@@ -218,7 +234,7 @@ class RadioScanner:
                     rtl_proc = subprocess.Popen(
                         rtl_args,
                         stdout=subprocess.PIPE,
-                        stderr=subprocess.DEVNULL,
+                        stderr=subprocess.PIPE,
                         preexec_fn=preexec,
                         text=False,
                     )
@@ -226,8 +242,8 @@ class RadioScanner:
                         mm_args,
                         stdin=rtl_proc.stdout,
                         stdout=subprocess.PIPE,
-                        stderr=subprocess.DEVNULL,
-                        text=True,
+                        stderr=subprocess.PIPE,
+                        text=False,
                         preexec_fn=preexec,
                     )
                     rtl_proc.stdout.close()  # permet que rtl_fm voit SIGPIPE si multimon-ng meurt
@@ -241,12 +257,17 @@ class RadioScanner:
 
                 def _read_output():
                     try:
-                        for line in iter(mm_proc.stdout.readline, ''):
+                        for raw_line in iter(mm_proc.stdout.readline, b''):
                             if stop_reader.is_set():
                                 break
-                            line = line.rstrip("\n")
+                            try:
+                                line = raw_line.decode('utf-8', errors='replace').rstrip("\n")
+                            except Exception:
+                                line = raw_line.decode('latin-1', errors='replace').rstrip("\n")
                             if not line:
                                 continue
+                            # Log dans le buffer
+                            _add_to_log_buffer("multimon_stdout", line)
                             # Utiliser le parser stateful
                             parsed = parser.feed(line)
                             if parsed:
@@ -259,8 +280,30 @@ class RadioScanner:
                         if pending:
                             self._call_on_message(pending)
 
+                def _read_stderr(pipe, source):
+                    try:
+                        for raw_line in iter(pipe.readline, b''):
+                            if stop_reader.is_set():
+                                break
+                            try:
+                                line = raw_line.decode('utf-8', errors='replace').rstrip("\n")
+                            except Exception:
+                                line = raw_line.decode('latin-1', errors='replace').rstrip("\n")
+                            if line:
+                                _add_to_log_buffer(source, line)
+                    except Exception as e:
+                        log.error("[Scanner] Lecture stderr (%s): %s", source, e)
+
                 reader = threading.Thread(target=_read_output, daemon=True)
+                stderr_reader1 = threading.Thread(
+                    target=_read_stderr, args=(rtl_proc.stderr, "rtl_fm"), daemon=True
+                )
+                stderr_reader2 = threading.Thread(
+                    target=_read_stderr, args=(mm_proc.stderr, "multimon_stderr"), daemon=True
+                )
                 reader.start()
+                stderr_reader1.start()
+                stderr_reader2.start()
 
                 # Surveillance continue jusqu'à arrêt ou mort du pipeline
                 while not self._stop.is_set():

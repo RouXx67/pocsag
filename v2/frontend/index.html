@@ -103,7 +103,7 @@ header{flex-direction:column;align-items:flex-start;gap:12px;padding:15px}
 <div class="container">
 <header>
 <div class="header-top">
-<h1><span class="live-dot" id="liveDot"></span> 📡 POCSAG Monitor <span id="appVersion" class="version-badge">v2.3.0</span> <span id="updateFlag" style="display:none;" class="update-flag" onclick="runUpdate()">🚀 MAJ dispo</span></h1>
+<h1><span class="live-dot" id="liveDot"></span> 📡 POCSAG Monitor <span id="appVersion" class="version-badge">v2.4.0</span> <span id="updateFlag" style="display:none;" class="update-flag" onclick="runUpdate()">🚀 MAJ dispo</span></h1>
 <button class="menu-toggle" onclick="toggleMenu()">☰</button>
 </div>
 <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -194,10 +194,20 @@ header{flex-direction:column;align-items:flex-start;gap:12px;padding:15px}
 <span id="pwdStatus" class="status-msg"></span>
 </div>
 <div class="card">
-<h2>📋 Logs</h2>
-<button class="btn-secondary" onclick="fetchLogs()">🔄 Rafraîchir</button>
-<pre id="logsConsole" class="logs-console">Chargement...</pre>
-</div>
+    <h2>📋 Logs</h2>
+    <div style="margin-bottom: 1rem;">
+      <h3 style="font-size: 1.1rem; color: var(--sub); margin-bottom: 0.5rem;">Journal système</h3>
+      <button class="btn-secondary" onclick="fetchLogs()">🔄 Rafraîchir</button>
+      <pre id="logsConsole" class="logs-console">Chargement...</pre>
+    </div>
+    <div>
+      <h3 style="font-size: 1.1rem; color: var(--sub); margin-bottom: 0.5rem;">Sortie multimon‑ng / rtl_fm</h3>
+      <button class="btn-secondary" onclick="fetchMultimonLogs()">🔄 Rafraîchir</button>
+      <button class="btn-secondary" id="toggleMultimonLive" onclick="toggleMultimonLive()">🔴 Live</button>
+      <button class="btn-secondary" onclick="clearMultimonLogs()">Vider</button>
+      <pre id="multimonConsole" class="logs-console" style="max-height: 300px;">Chargement...</pre>
+    </div>
+  </div>
 <div class="card" id="updateCard" style="display:none;border-color:var(--danger);">
 <h2 style="color:var(--danger);">🚀 Mise à jour disponible</h2>
 <p style="color:var(--sub);font-size:0.9rem;">Version <span id="remoteVersion"></span> disponible.</p>
@@ -211,6 +221,7 @@ header{flex-direction:column;align-items:flex-start;gap:12px;padding:15px}
 <script>
 let TOKEN = sessionStorage.getItem("pocsag_token")||"";
 let messages=[], hourlyData=[], leafletMap=null, markersLayer=null, currentFilter="all";
+let multimonLiveInterval = null;
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function escAttr(s){return String(s).replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;')}
 async function api(path,opts={}){
@@ -399,8 +410,54 @@ showStatus("pwdStatus",r.status==="ok"?"✅ Modifié":"❌ Erreur",r.status==="o
 if(r.status==="ok")document.getElementById("adminPwdInput").value=""
 }
 async function fetchLogs(){
-const text=await api("/api/logs");
-document.getElementById("logsConsole").textContent=typeof text=="string"?(text||"(vide)"):JSON.stringify(text)
+  const text=await api("/api/logs");
+  document.getElementById("logsConsole").textContent=typeof text=="string"?(text||"(vide)"):JSON.stringify(text)
+}
+
+async function fetchMultimonLogs(){
+  try {
+    const resp = await api("/api/multimon-logs?lines=200");
+    const lines = resp.lines || [];
+    const formatted = lines.map(entry => 
+      `[${entry.ts}] ${entry.source}: ${entry.line}`).join("\n");
+    const consoleEl = document.getElementById("multimonConsole");
+    consoleEl.textContent = formatted || "(vide)";
+    // Auto-scroll vers le bas si live actif
+    if (multimonLiveInterval) {
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+  } catch (error) {
+    console.error("fetchMultimonLogs", error);
+    document.getElementById("multimonConsole").textContent = "Erreur de chargement";
+  }
+}
+
+function toggleMultimonLive() {
+  const btn = document.getElementById("toggleMultimonLive");
+  if (multimonLiveInterval) {
+    clearInterval(multimonLiveInterval);
+    multimonLiveInterval = null;
+    btn.textContent = "🔴 Live";
+    btn.classList.remove("btn-danger");
+    btn.classList.add("btn-secondary");
+  } else {
+    fetchMultimonLogs();
+    multimonLiveInterval = setInterval(fetchMultimonLogs, 2000);
+    btn.textContent = "✅ Live";
+    btn.classList.remove("btn-secondary");
+    btn.classList.add("btn-danger");
+  }
+}
+
+function clearMultimonLogs() {
+  // Vider localement le buffer (côté serveur) n'est pas disponible.
+  // On vide juste l'affichage
+  document.getElementById("multimonConsole").textContent = "(vide)";
+}
+
+// Charger une première fois au démarrage
+if (TOKEN) {
+  setTimeout(fetchMultimonLogs, 2000);
 }
 function renderAliases(aliases){
 const tbody=document.getElementById("aliasListTable"),keys=Object.keys(aliases);

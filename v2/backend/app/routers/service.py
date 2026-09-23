@@ -9,7 +9,7 @@ from app.database import async_session_factory, get_db
 from app.models import ConfigEntry
 from app.schemas import DongleStatus, ServiceStatus
 from app.config import settings
-from app.services.radio import CURRENT_SCAN_FREQ, check_dongle
+from app.services.radio import CURRENT_SCAN_FREQ, check_dongle, MULTIMON_LOG, _log_buffer_lock
 
 router = APIRouter(tags=["service"])
 
@@ -146,3 +146,18 @@ async def run_update():
         return {"status": "updating"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+@router.get("/api/multimon-logs")
+async def get_multimon_logs(lines: int = 200):
+    """
+    Renvoie les N dernières lignes du buffer de logs multimon-ng/rtl_fm.
+    """
+    from app.services.radio import MULTIMON_LOG, _log_buffer_lock
+    with _log_buffer_lock:
+        recent = list(MULTIMON_LOG)[-lines:] if lines > 0 else []
+    return {
+        "lines": recent,
+        "count": len(recent),
+        "buffer_size": len(MULTIMON_LOG),
+    }

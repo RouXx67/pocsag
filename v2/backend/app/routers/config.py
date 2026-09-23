@@ -86,6 +86,8 @@ async def get_config(db: AsyncSession = Depends(get_db)):
             cfg.sample_rate = row.value
         elif row.key == "output_rate":
             cfg.output_rate = row.value
+        elif row.key == "bias_t":
+            cfg.bias_t = row.value.lower() in ("true", "yes", "1")
 
     alias_rows = await db.execute(select(Alias))
     cfg.aliases = {a.ric: a.name for a in alias_rows.scalars()}

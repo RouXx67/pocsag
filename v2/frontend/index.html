@@ -87,6 +87,15 @@ header{flex-direction:column;align-items:flex-start;gap:12px;padding:15px}
 #authScreen input{width:100%;margin-bottom:12px}
 #loginError{color:#f87171;font-size:0.9rem;margin-top:8px}
 .version-badge{background:#27272a;color:var(--sub);padding:3px 10px;border-radius:999px;font-size:0.75rem;font-weight:600}
+/* Animation pour les marqueurs */
+@keyframes markerPop {
+ 0% { transform: scale(0); opacity: 0; }
+ 70% { transform: scale(1.1); opacity: 0.8; }
+ 100% { transform: scale(1); opacity: 1; }
+}
+.marker-pop {
+ animation: markerPop 0.3s ease-out;
+}
 </style>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin></script>
@@ -103,7 +112,7 @@ header{flex-direction:column;align-items:flex-start;gap:12px;padding:15px}
 <div class="container">
 <header>
 <div class="header-top">
-<h1><span class="live-dot" id="liveDot"></span> 📡 POCSAG Monitor <span id="appVersion" class="version-badge">v2.5.0</span> <span id="updateFlag" style="display:none;" class="update-flag" onclick="runUpdate()">🚀 MAJ dispo</span></h1>
+<h1><span class="live-dot" id="liveDot"></span> 📡 POCSAG Monitor <span id="appVersion" class="version-badge">v2.6.0</span> <span id="updateFlag" style="display:none;" class="update-flag" onclick="runUpdate()">🚀 MAJ dispo</span></h1>
 <button class="menu-toggle" onclick="toggleMenu()">☰</button>
 </div>
 <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -129,7 +138,8 @@ header{flex-direction:column;align-items:flex-start;gap:12px;padding:15px}
 <div class="map-card">
 <div class="map-header"><span>📍 Carte des interventions</span><span style="font-size:0.75rem;color:var(--sub);font-weight:normal;" id="mapCount">0 géolocalisées</span></div>
 <div id="generalMap"></div>
-</div>
+ <div id="mapLegend" style="margin-top:12px;font-size:0.75rem;color:var(--sub);display:flex;flex-wrap:wrap;gap:12px;align-items:center;"></div>
+ </div>
 <div class="filter-pills">
 <div class="pill active" onclick="setFilter('all',this)">📋 Tous</div>
 <div class="pill pill-urgent" onclick="setFilter('urgent',this)">🚨 Urgents</div>
@@ -223,6 +233,58 @@ header{flex-direction:column;align-items:flex-start;gap:12px;padding:15px}
 let TOKEN = sessionStorage.getItem("pocsag_token")||"";
 let messages=[], hourlyData=[], leafletMap=null, markersLayer=null, currentFilter="all";
 let multimonLiveInterval = null;
+
+// ======== Utilitaires carte ========
+function natureColor(message) {
+    const msg = message.toUpperCase();
+    if (msg.includes("FEU")) return "#ef4444";        // 🔥 Feu
+    if (msg.includes("VSAV") || msg.includes("VSAB") || msg.includes("SAP")) return "#0ea5e9"; // 💧 VSAV/SAP
+    if (msg.includes("AVP") || msg.includes("VL CONTRE") || msg.includes("PL CONTRE") || msg.includes("COLLISION"))
+        return "#f59e0b";     // ⚠️  Accident
+    if (msg.includes("CARENCE") || msg.includes("MOYENS")) return "#a855f7"; // 💜 Carence
+    return "#6b7280";         // gris (autre)
+}
+
+function hexToRgb(hex) {
+    const m = hex.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+    if (!m) return [128, 128, 128];
+    return [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
+}
+
+function rgbToHex(r, g, b) {
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+
+// Mélange deux couleurs selon ratio (0=col1, 1=col2)
+function blendColors(col1, col2, ratio) {
+    const [r1, g1, b1] = hexToRgb(col1);
+    const [r2, g2, b2] = hexToRgb(col2);
+    const r = Math.round(r1 + (r2 - r1) * ratio);
+    const g = Math.round(g1 + (g2 - g1) * ratio);
+    const b = Math.round(b1 + (b2 - b1) * ratio);
+    return rgbToHex(r, g, b);
+}
+
+// Calcul du fade selon l'âge (24h max) et urgence
+function computeFade(createdAt, isUrgent) {
+    const ageH = (Date.now() - new Date(createdAt)) / 3600000;
+    let fade = Math.max(0.15, 1 - ageH / 24);   // 1 → 0.15 après 24h+
+    if (isUrgent) fade = Math.max(0.4, fade);   // urgent reste plus visible
+    return fade;
+}
+
+// Gestion des coordonnées dupliquées : spider offset
+const coordCount = new Map();
+function getSpiderOffset(lat, lon, index) {
+    const key = lat.toFixed(6) + "|" + lon.toFixed(6);
+    const count = coordCount.get(key) || 0;
+    coordCount.set(key, count + 1);
+    if (count === 0) return [lat, lon];
+    // Position sur un cercle de rayon 0.0003° (~30 m)
+    const angle = (index % 8) * (Math.PI / 4);
+    const offset = 0.0003;
+    return [lat + offset * Math.sin(angle), lon + offset * Math.cos(angle)];
+}
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function escAttr(s){return String(s).replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;')}
 async function api(path,opts={}){
@@ -320,28 +382,83 @@ return`<tr><td style="color:var(--sub);">${new Date(m.created_at).toLocaleString
 }).join("")
 }
 function initMap(){
-if(leafletMap)return;
-try{
-leafletMap=L.map("generalMap",{zoomControl:true}).setView([48.4,7.5],9);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"&copy; OpenStreetMap",maxZoom:19}).addTo(leafletMap);
-markersLayer=L.markerClusterGroup({chunkedLoading:true,maxClusterRadius:40});
-leafletMap.addLayer(markersLayer)
-}catch(e){console.warn("Map:",e)}
+ if(leafletMap)return;
+ try{
+ leafletMap=L.map("generalMap",{zoomControl:true}).setView([48.4,7.5],9);
+ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"&copy; OpenStreetMap",maxZoom:19}).addTo(leafletMap);
+ // Groupe simple (pas de clustering) pour points individuels
+ markersLayer = L.layerGroup();
+ leafletMap.addLayer(markersLayer);
+ }catch(e){console.warn("Map:",e)}
 }
 function updateMapMarkers(){
-if(!leafletMap||!markersLayer)return;
-markersLayer.clearLayers();
-let count=0;
-messages.forEach(m=>{
-if(m.lat!=null&&m.lon!=null){
-const color=m.is_urgent?"#ef4444":"#0284c7";
-const mk=L.circleMarker([m.lat,m.lon],{radius:8,fillColor:color,color:"#fff",weight:2,fillOpacity:0.9});
-mk.bindPopup(`<b style="color:${color}">${m.is_urgent?"🚨 URGENT":"📋 ALERTE"}</b><br><b>RIC:</b> ${m.ric} ${m.alias?"("+m.alias+")":""}<br><b>Adresse:</b> ${m.address||"N/A"}<br><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.address||"")}" target="_blank">🗺️ Maps</a>`);
-markersLayer.addLayer(mk);
-count++
+ if(!leafletMap||!markersLayer)return;
+ markersLayer.clearLayers();
+ coordCount.clear(); // réinitialise l'offset spider
+ let count=0;
+
+ messages.forEach(m=>{
+ if(m.lat!=null&&m.lon!=null){
+ const baseColor = natureColor(m.message);
+ const fade = computeFade(m.created_at, m.is_urgent);
+ const color = m.is_urgent ? "#dc2626" : blendColors(baseColor, "#9ca3af", 1 - fade);
+ const opacity = fade;
+ const radius = 6 + fade * 4; // rayon 10 → 7 en 24h
+ const [lat, lon] = getSpiderOffset(m.lat, m.lon, count);
+
+ const mk = L.circleMarker([lat, lon], {
+ radius,
+ fillColor: color,
+ color: "#fff",
+ weight: 2,
+ fillOpacity: opacity,
+ className: "marker-pop" // animation CSS
+ });
+
+ let natureText = "";
+ if (baseColor === "#ef4444") natureText = "🔥 Feu";
+ else if (baseColor === "#0ea5e9") natureText = "💧 VSAV/SAP";
+ else if (baseColor === "#f59e0b") natureText = "⚠️ AVP/Accident";
+ else if (baseColor === "#a855f7") natureText = "💜 " + (m.message.includes("CARENCE") ? "Carence" : "Moyens");
+ else natureText = "📌 Autre";
+ 
+ const popupContent = `<div style="max-width:300px;">
+ <b style="color:${color}">${natureText} ${m.is_urgent?"🚨 URGENT":""}</b><br>
+ <b>RIC:</b> ${m.ric} ${m.alias?"("+m.alias+")":""}<br>
+ <b>Msg:</b> ${escHtml(m.message)}<br>
+ <b>Adresse:</b> ${m.address||"N/A"}<br>
+ <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.address||"")}" target="_blank">🗺️ Maps</a><br>
+ <small style="color:#6b7280;">${new Date(m.created_at).toLocaleString("fr-FR")} – ${Math.round((Date.now() - new Date(m.created_at)) / 60000)} min</small>
+ </div>`;
+ mk.bindPopup(popupContent);
+ markersLayer.addLayer(mk);
+ count++;
+ }
+ });
+
+ document.getElementById("mapCount").textContent = count + " géolocalisées";
+
+// Mise à jour de la légende (créée une seule fois)
+ updateMapLegend();
 }
-});
-document.getElementById("mapCount").textContent=count+" géolocalisées"
+function updateMapLegend() {
+ const legend = document.getElementById("mapLegend");
+ if (!legend) return;
+ const items = [
+ {color:"#ef4444", label:"🔥 Feu"},
+ {color:"#0ea5e9", label:"💧 VSAV/SAP"},
+ {color:"#f59e0b", label:"⚠️ AVP/Accident"},
+ {color:"#a855f7", label:"💜 Carence/Moyens"},
+ {color:"#6b7280", label:"📌 Autre"},
+ {color:"#dc2626", label:"🚨 Urgent (mot‑clé)"}
+ ];
+ const html = items.map(item => `
+ <div style="display:flex;align-items:center;gap:4px;">
+ <div style="width:12px;height:12px;border-radius:50%;background:${item.color};border:1px solid #fff;"></div>
+ <span>${item.label}</span>
+ </div>
+ `).join("");
+ legend.innerHTML = html + `<div style="color:#9ca3af;margin-left:10px;">← Neuf → <span style="opacity:0.6">fondu après 24 h</span></div>`;
 }
 function setFilter(type,btn){
 document.querySelectorAll(".pill").forEach(p=>p.classList.remove("active"));

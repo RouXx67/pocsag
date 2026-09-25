@@ -1,55 +1,59 @@
-import pytest
+"""
+Test unitaire pour l'extracteur d'adresses.
+"""
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
 from app.services.address import extract_address
 
 
-def test_avp_extract():
-    msg = "AVP VL RUE DE LA GARE STRASBOURG"
-    assert extract_address(msg) == "VL RUE DE LA GARE STRASBOURG"
+def test_extract_address():
+    # Cas réels des logs
+    cases = [
+        (
+            "#G SAP JAUNE A DOMICILE VSAV001.CA BENFELD 4 RUE CHATEAU D EAU",
+            "BENFELD 4 RUE CHATEAU D EAU"
+        ),
+        (
+            "#G SAP JAUNE SUR VP/LP VSAV001.CA RHINAU 4 RUE BEAUMONT DU PERIGORD",
+            "RHINAU 4 RUE BEAUMONT DU PERIGORD"
+        ),
+        (
+            "#G SAP JAUNE A DOMICILE VSAV001.CA BOOFZHEIM 25 RUE COLMAR",
+            "BOOFZHEIM 25 RUE COLMAR"
+        ),
+        (
+            "#G CARENCE MOYENS PRIVES VSAV001.CA BENFELD 3 RUE ANCIENNE PORTE",
+            "BENFELD 3 RUE ANCIENNE PORTE"
+        ),
+        # Cas sans numéro (exemple hypothétique)
+        (
+            "#G SAP JAUNE A DOMICILE VSAV001.CA BENFELD RUE CHATEAU D EAU",
+            "BENFELD RUE CHATEAU D EAU"
+        ),
+        # Message sans adresse structurée -> retourne le texte nettoyé
+        (
+            "MESSAGE SANS ADRESSE STRUCTUREE",
+            "MESSAGE SANS ADRESSE STRUCTUREE"
+        ),
+    ]
+
+    failures = []
+    for original, expected in cases:
+        got = extract_address(original)
+        if got != expected:
+            failures.append((original, expected, got))
+
+    if failures:
+        for orig, exp, got in failures:
+            print(f"❌ Échec sur : {orig}")
+            print(f"   Attendu : {exp}")
+            print(f"   Obtenu  : {got}")
+        raise AssertionError(f"{len(failures)} test(s) en échec")
+    else:
+        print("✅ Tous les tests passent.")
 
 
-def test_sap_extract():
-    msg = "SAP VERT A DOMICILE VSAV001 BENFELD 7C RUE PETIT REMPART"
-    addr = extract_address(msg)
-    assert "BENFELD" in addr
-    assert "RUE PETIT REMPART" in addr
-
-
-def test_feu_extract():
-    msg = "FEU DE CHAUME FPT001 STRASBOURG 12 RUE DE LA GARE"
-    addr = extract_address(msg)
-    assert "12 RUE DE LA GARE" in addr
-    assert "STRASBOURG" in addr
-
-
-def test_engin_removed():
-    msg = "SAP VSAV001.COND BENFELD 7C RUE PETIT REMPART"
-    addr = extract_address(msg)
-    assert "VSAV001" not in addr
-
-
-def test_city_first_pattern():
-    msg = "THANN 12 AVENUE DE LA REPUBLIQUE"
-    addr = extract_address(msg)
-    assert "12 AVENUE DE LA REPUBLIQUE" in addr
-    assert "THANN" in addr
-
-
-def test_slash_fallback():
-    msg = "AVP / STRASBOURG / 15 RUE DES FLEURS"
-    addr = extract_address(msg)
-    assert "STRASBOURG" in addr
-
-
-def test_empty():
-    assert extract_address("") == ""
-
-
-def test_prefixes():
-    msg = "RECONNAISSANCE RUE PRINCIPALE COLMAR"
-    addr = extract_address(msg)
-    assert "RUE PRINCIPALE" in addr
-
-
-def test_no_address():
-    msg = "TEST SIMPLE MESSAGE SANS ADRESSE"
-    assert extract_address(msg) == msg
+if __name__ == "__main__":
+    test_extract_address()

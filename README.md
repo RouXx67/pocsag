@@ -1,4 +1,4 @@
-# POCSAG Monitor v2
+# POCSAG Monitor
 
 Application autonome de décodage et supervision en temps réel des trames POCSAG (services d'urgence).
 

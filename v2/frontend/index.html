@@ -112,7 +112,7 @@ header{flex-direction:column;align-items:flex-start;gap:12px;padding:15px}
 <div class="container">
 <header>
 <div class="header-top">
-<h1><span class="live-dot" id="liveDot"></span> 📡 POCSAG Monitor <span id="appVersion" class="version-badge">v2.6.0</span> <span id="updateFlag" style="display:none;" class="update-flag" onclick="runUpdate()">🚀 MAJ dispo</span></h1>
+<h1><span class="live-dot" id="liveDot"></span> 📡 POCSAG Monitor <span id="appVersion" class="version-badge">v2.7.0</span> <span id="updateFlag" style="display:none;" class="update-flag" onclick="runUpdate()">🚀 MAJ dispo</span></h1>
 <button class="menu-toggle" onclick="toggleMenu()">☰</button>
 </div>
 <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -120,6 +120,7 @@ header{flex-direction:column;align-items:flex-start;gap:12px;padding:15px}
 <div class="tabs" id="navTabs">
 <button class="tab-btn active" onclick="switchTab('monitoring',event)">📡 Direct</button>
 <button class="tab-btn" onclick="switchTab('settings',event)">⚙️ Settings</button>
+<button class="tab-btn" onclick="switchTab('history',event)">📜 Historique</button>
 </div>
 </div>
 </header>
@@ -224,6 +225,38 @@ header{flex-direction:column;align-items:flex-start;gap:12px;padding:15px}
 <p style="color:var(--sub);font-size:0.9rem;">Version <span id="remoteVersion"></span> disponible.</p>
 <button class="btn-danger" onclick="runUpdate()">Mettre à jour</button>
 <span id="updateStatus" class="status-msg"></span>
+    </div>
+  </div>
+</div>
+<div id="tab-history" class="tab-content">
+<div class="card">
+<h2>📜 Historique des paramètres</h2>
+<p style="color:var(--sub);font-size:0.9rem;margin-bottom:1rem;">
+Changements des paramètres (radio, notifications, mots-clés…). Seuls les changements réels sont enregistrés.
+</p>
+<div class="toolbar">
+<button onclick="loadHistory()">🔄 Rafraîchir</button>
+<select id="historyFilterKey" onchange="loadHistory()">
+<option value="">Tous les paramètres</option>
+<option value="frequencies">Fréquences</option>
+<option value="keywords">Mots-clés</option>
+<option value="ppm">PPM</option>
+<option value="gain">Gain</option>
+<option value="sample_rate">Sample Rate</option>
+<option value="output_rate">Output Rate</option>
+<option value="squelch">Squelch</option>
+<option value="scan_interval">Scan Interval</option>
+<option value="bias_t">Bias‑T</option>
+<option value="discord_webhook">Discord Webhook</option>
+<option value="telegram_bot_token">Telegram Token</option>
+<option value="telegram_chat_id">Telegram Chat ID</option>
+<option value="notify_empty">Notifier trames vides</option>
+</select>
+</div>
+<table class="table-container" style="margin-top:1rem;">
+<thead><tr><th style="width:150px;">Heure</th><th style="width:180px;">Paramètre</th><th style="width:200px;">Avant</th><th style="width:200px;">Après</th><th style="width:90px;">Action</th></tr></thead>
+<tbody id="historyTable"><tr><td colspan="5" style="color:var(--sub);text-align:center;padding:30px;">Aucun changement enregistré</td></tr></tbody>
+</table>
 </div>
 </div>
 </div>
@@ -330,6 +363,62 @@ if(cfg.keywords)document.getElementById("keywordsInput").value=cfg.keywords.join
 document.getElementById("notifyEmpty").checked=cfg.notify_empty!==false;
 renderAliases(cfg.aliases||{});renderBlacklist(cfg.blacklist||[])
 }
+async function loadHistory() {
+const filter = document.getElementById("historyFilterKey").value;
+let url = "/api/config/history?limit=100";
+if (filter) url += "&key=" + encodeURIComponent(filter);
+const data = await api(url);
+if (!Array.isArray(data)) { return; }
+
+// Mapping des clés vers libellés lisible
+const keyLabels = {
+    frequencies: "Fréquences",
+    keywords: "Mots‑clés",
+    ppm: "PPM",
+    gain: "Gain",
+    sample_rate: "Sample Rate",
+    output_rate: "Output Rate",
+    squelch: "Squelch",
+    scan_interval: "Scan Interval",
+    bias_t: "Bias‑T",
+    discord_webhook: "Discord Webhook",
+    telegram_bot_token: "Telegram Token",
+    telegram_chat_id: "Telegram Chat ID",
+    notify_empty: "Notifier trames vides"
+};
+
+const tbody = document.getElementById("historyTable");
+if (data.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="color:var(--sub);text-align:center;padding:30px;">Aucun changement enregistré</td></tr>`;
+    return;
+}
+
+const rows = data.map(h => {
+    const keyLabel = keyLabels[h.key] || h.key;
+    const oldVal = h.old_value === null ? '<i>(création)</i>' : escHtml(h.old_value);
+    const newVal = h.new_value === null ? '<i>(suppression)</i>' : escHtml(h.new_value);
+    const date = new Date(h.created_at).toLocaleString("fr-FR");
+    return `<tr>
+        <td><small>${escHtml(date)}</small></td>
+        <td><span class="badge-ric" style="background:#6b7280;">${escHtml(keyLabel)}</span></td>
+        <td style="word-break:break-all;max-width:200px;font-family:monospace;font-size:0.9rem;">${oldVal}</td>
+        <td style="word-break:break-all;max-width:200px;font-family:monospace;font-size:0.9rem;">${newVal}</td>
+        <td><button class="btn-secondary" onclick="restoreHistory(${h.id})" ${h.old_value===null?'disabled':''}>Restaurer</button></td>
+    </tr>`;
+}).join("");
+tbody.innerHTML = rows;
+}
+
+async function restoreHistory(id) {
+if (!confirm("Revenir à la valeur précédente ? Le paramètre sera mis à jour et un nouvel événement sera ajouté à l'historique.")) return;
+const r = await api(`/api/config/history/${id}/restore`, { method: "POST" });
+if (r.status === "ok") {
+    loadHistory();
+    // Rafraîchir aussi la config affichée (sauf pour les onglets non visibles)
+    loadConfig();
+}
+}
+
 async function fetchMessages(){
 const s=document.getElementById("searchInput").value;
 const url="/api/messages?limit=200"+(s?"&search="+encodeURIComponent(s):"");

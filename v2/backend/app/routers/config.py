@@ -7,10 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import verify_token, hash_password, create_token, verify_password
 from app.config import settings
 from app.database import get_db
-from app.models import Alias, BlacklistEntry, ConfigEntry
+from app.models import Alias, BlacklistEntry, ConfigEntry, ConfigHistory
 from app.schemas import (
     AliasCreate, AliasOut, BlacklistCreate, BlacklistOut,
-    ConfigOut, ConfigUpdate, LoginRequest, TokenOut, VersionOut,
+    ConfigOut, ConfigUpdate, ConfigHistoryOut, LoginRequest, TokenOut, VersionOut,
 )
 
 router = APIRouter(tags=["config"])
@@ -40,12 +40,62 @@ async def _get_config_value(db: AsyncSession, key: str, default: str = "") -> st
 
 
 async def _set_config_value(db: AsyncSession, key: str, value: str):
+    # Ne pas historiser le password hash (sécurité)
+    if key == "admin_password_hash":
+        # Même comportement ancien, pas d'historique
+        entry = await db.get(ConfigEntry, key)
+        if entry:
+            entry.value = str(value)
+        else:
+            db.add(ConfigEntry(key=key, value=str(value)))
+        await db.commit()
+        return
     entry = await db.get(ConfigEntry, key)
+    old_val = entry.value if entry else None
+    new_val = str(value)
     if entry:
-        entry.value = str(value)
+        # Changement réel ?
+        if entry.value == new_val:
+            # Pas de changement, juste commit
+            await db.commit()
+            return
+        entry.value = new_val
     else:
-        db.add(ConfigEntry(key=key, value=str(value)))
+        db.add(ConfigEntry(key=key, value=new_val))
+    # Enregistrer l'historique (même si old=None)
+    db.add(ConfigHistory(key=key, old_value=old_val, new_value=new_val))
     await db.commit()
+
+
+@router.get("/api/config/history", response_model=list[ConfigHistoryOut])
+async def get_history(
+    key: str | None = Query(None, description="Filtrer par clé config"),
+    limit: int = Query(100, ge=1, le=500, description="Nombre d'entrées max"),
+    db: AsyncSession = Depends(get_db),
+    _=Depends(_require_auth),
+):
+    stmt = select(ConfigHistory).order_by(ConfigHistory.created_at.desc())
+    if key:
+        stmt = stmt.where(ConfigHistory.key == key)
+    stmt = stmt.limit(limit)
+    rows = await db.execute(stmt)
+    return rows.scalars().all()
+
+
+@router.post("/api/config/history/{id}/restore")
+async def restore_history(
+    id: int,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(_require_auth),
+):
+    row = await db.get(ConfigHistory, id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Entrée d'historique non trouvée")
+    # Restaurer l'ancienne valeur (row.old_value) dans ConfigEntry
+    # Si old_value est None, on ne fait rien (c'était une première création)
+    if row.old_value is not None:
+        await _set_config_value(db, row.key, row.old_value)
+    return {"status": "ok"}
 
 
 @router.get("/api/version", response_model=VersionOut)
